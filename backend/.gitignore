@@ -11,6 +11,11 @@ venv/
 .env
 .env.*
 
+# Local SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+
 # Tooling caches
 .pytest_cache/
 .mypy_cache/
