@@ -1,8 +1,9 @@
-from fastapi import FastAPI
+import sys
+from pathlib import Path
 
-app = FastAPI(title="Advanced Software Technology API")
 
+BACKEND_DIR = Path(__file__).resolve().parent
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 
-@app.get("/")
-def read_root() -> dict[str, str]:
-    return {"message": "FastAPI backend is running"}
+from app.main import app
