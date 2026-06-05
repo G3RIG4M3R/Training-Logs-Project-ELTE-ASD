@@ -1,42 +1,23 @@
-import { useState } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import AthletesPage from './pages/AthletesPage';
 import AttendancePage from './pages/AttendancePage';
 import ResultsPage from './pages/ResultsPage';
 import ProfilePage from './pages/ProfilePage';
-import type { Athlete } from './types/athlete';
-
-type Page = 'athletes' | 'attendance' | 'results';
 
 export default function App() {
-  const [page, setPage] = useState<Page>('athletes');
-  const [selectedAthleteId, setSelectedAthleteId] = useState<number | null>(null);
-
-  const handleNavigate = (p: string) => {
-    setSelectedAthleteId(null);
-    setPage(p as Page);
-  };
-
-  const handleViewProfile = (athlete: Athlete) => {
-    setSelectedAthleteId(athlete.id);
-  };
-
   return (
     <>
-      <Navbar currentPage={selectedAthleteId !== null ? '' : page} onNavigate={handleNavigate} />
+      <Navbar />
       <main className="main">
-        {selectedAthleteId !== null ? (
-          <ProfilePage
-            athleteId={selectedAthleteId}
-            onBack={() => setSelectedAthleteId(null)}
-          />
-        ) : (
-          <>
-            {page === 'athletes'   && <AthletesPage onViewProfile={handleViewProfile} />}
-            {page === 'attendance' && <AttendancePage />}
-            {page === 'results'    && <ResultsPage />}
-          </>
-        )}
+        <Routes>
+          <Route path="/" element={<Navigate to="/athletes" replace />} />
+          <Route path="/athletes" element={<AthletesPage />} />
+          <Route path="/athletes/:athleteId" element={<ProfilePage />} />
+          <Route path="/attendance" element={<AttendancePage />} />
+          <Route path="/results" element={<ResultsPage />} />
+          <Route path="*" element={<Navigate to="/athletes" replace />} />
+        </Routes>
       </main>
     </>
   );

@@ -5,6 +5,7 @@ import type { Result, ResultCreate, ResultUpdate } from '../types/result';
 import * as athleteApi from '../api/athletes';
 import * as sessionApi from '../api/sessions';
 import * as resultsApi from '../api/results';
+import { useSessionSelection } from '../hooks/useSessionQueryParam';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
 import ErrorMessage from '../components/ErrorMessage';
@@ -188,7 +189,7 @@ function ResultFormModal({ athletes, sessionId, initial, onSave, onClose }: Resu
 // ── Main Page ─────────────────────────────────────────────────
 export default function ResultsPage() {
   const [sessions, setSessions] = useState<TrainingSession[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const { selectedId, selectSession } = useSessionSelection(sessions);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [results, setResults] = useState<Result[]>([]);
 
@@ -212,9 +213,6 @@ export default function ResultsPage() {
     try {
       const data = await sessionApi.listSessions();
       setSessions(data);
-      if (data.length > 0) {
-        setSelectedId(prev => prev ?? data[0].id);
-      }
     } catch (err) {
       setSessionsError(err instanceof Error ? err.message : 'Failed to load sessions');
     } finally {
@@ -252,7 +250,7 @@ export default function ResultsPage() {
       notes: notes.trim() || undefined,
     });
     setSessions(prev => [session, ...prev]);
-    setSelectedId(session.id);
+    selectSession(session.id);
     setShowNewSession(false);
   };
 
@@ -277,7 +275,6 @@ export default function ResultsPage() {
       setSessions(remaining);
       setDeletingSessionId(null);
       if (selectedId === deletingSessionId) {
-        setSelectedId(remaining.length > 0 ? remaining[0].id : null);
         setResults([]);
       }
     } catch (err) {
@@ -363,7 +360,7 @@ export default function ResultsPage() {
               <select
                 className="filter-select session-select"
                 value={selectedId ?? ''}
-                onChange={e => setSelectedId(Number(e.target.value))}
+                onChange={e => selectSession(Number(e.target.value))}
               >
                 {sessions.map(s => (
                   <option key={s.id} value={s.id}>

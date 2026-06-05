@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { getAthleteProfile, updateAthlete } from '../api/athletes';
 import type { Athlete, AthleteProfile } from '../types/athlete';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -25,18 +26,26 @@ function formatDate(dateStr: string): string {
   });
 }
 
-interface ProfilePageProps {
-  athleteId: number;
-  onBack: () => void;
+function parseAthleteId(param: string | undefined): number | null {
+  if (!param) return null;
+  const id = Number(param);
+  return Number.isInteger(id) && id > 0 ? id : null;
 }
 
-export default function ProfilePage({ athleteId, onBack }: ProfilePageProps) {
+export default function ProfilePage() {
+  const { athleteId: athleteIdParam } = useParams();
+  const navigate = useNavigate();
+  const athleteId = parseAthleteId(athleteIdParam);
+
   const [profile, setProfile] = useState<AthleteProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(false);
 
+  const goBack = () => navigate('/athletes');
+
   const load = useCallback(() => {
+    if (athleteId === null) return;
     setLoading(true);
     setError('');
     getAthleteProfile(athleteId)
@@ -45,29 +54,16 @@ export default function ProfilePage({ athleteId, onBack }: ProfilePageProps) {
       .finally(() => setLoading(false));
   }, [athleteId]);
 
-  useEffect(() => { load(); }, [load]);
-
-  if (loading) {
-    return (
-      <div className="page">
-        <button className="btn btn--secondary" onClick={onBack} style={{ marginBottom: '1rem' }}>← Back</button>
-        <LoadingSpinner />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="page">
-        <button className="btn btn--secondary" onClick={onBack} style={{ marginBottom: '1rem' }}>← Back</button>
-        <ErrorMessage message={error} onRetry={load} />
-      </div>
-    );
-  }
-
-  if (!profile) return null;
+  useEffect(() => {
+    if (athleteId === null) {
+      navigate('/athletes', { replace: true });
+      return;
+    }
+    load();
+  }, [athleteId, load, navigate]);
 
   const handleSaveEdit = async (data: Omit<Athlete, 'id'>) => {
+    if (athleteId === null) return;
     await updateAthlete(athleteId, {
       name: data.name,
       dateOfBirth: data.dateOfBirth,
@@ -79,9 +75,33 @@ export default function ProfilePage({ athleteId, onBack }: ProfilePageProps) {
       shoeSize: data.shoeSize,
       notes: data.notes?.trim() || undefined,
     });
-    await load();
+    load();
     setEditing(false);
   };
+
+  if (athleteId === null) {
+    return null;
+  }
+
+  if (loading) {
+    return (
+      <div className="page">
+        <button className="btn btn--secondary" onClick={goBack} style={{ marginBottom: '1rem' }}>← Back</button>
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="page">
+        <button className="btn btn--secondary" onClick={goBack} style={{ marginBottom: '1rem' }}>← Back</button>
+        <ErrorMessage message={error} onRetry={load} />
+      </div>
+    );
+  }
+
+  if (!profile) return null;
 
   const s = profile.attendanceSummary;
   const attendanceRate = s.totalSessions > 0
@@ -90,13 +110,11 @@ export default function ProfilePage({ athleteId, onBack }: ProfilePageProps) {
 
   return (
     <div className="page">
-      {/* Back button */}
       <div className="profile-back-bar">
-        <button className="btn btn--secondary" onClick={onBack}>← Back to Athletes</button>
+        <button className="btn btn--secondary" onClick={goBack}>← Back to Athletes</button>
         <button className="btn btn--primary" onClick={() => setEditing(true)}>Edit Athlete</button>
       </div>
 
-      {/* Profile header */}
       <div className="profile-header">
         <div className={`avatar avatar--${profile.sex} avatar--lg`}>
           {initials(profile.name)}
@@ -114,9 +132,7 @@ export default function ProfilePage({ athleteId, onBack }: ProfilePageProps) {
         </div>
       </div>
 
-      {/* Cards row */}
       <div className="profile-cards">
-        {/* Physical stats */}
         <div className="profile-card">
           <h3 className="card-title">Physical Stats</h3>
           <div className="stat-grid">
@@ -131,7 +147,6 @@ export default function ProfilePage({ athleteId, onBack }: ProfilePageProps) {
           </div>
         </div>
 
-        {/* Gear sizes */}
         <div className="profile-card">
           <h3 className="card-title">Gear Sizes</h3>
           <div className="stat-grid">
@@ -150,7 +165,6 @@ export default function ProfilePage({ athleteId, onBack }: ProfilePageProps) {
           </div>
         </div>
 
-        {/* Attendance summary */}
         <div className="profile-card">
           <h3 className="card-title">Attendance</h3>
           {s.totalSessions === 0 ? (
@@ -184,7 +198,6 @@ export default function ProfilePage({ athleteId, onBack }: ProfilePageProps) {
         </div>
       </div>
 
-      {/* Recent results */}
       <div>
         <h2 className="section-title">Recent Results</h2>
         {profile.recentResults.length === 0 ? (

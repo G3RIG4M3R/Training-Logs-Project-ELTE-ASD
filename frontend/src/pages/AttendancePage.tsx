@@ -5,6 +5,7 @@ import type { AttendanceRecord, AttendanceStatus } from '../types/attendance';
 import * as athleteApi from '../api/athletes';
 import * as sessionApi from '../api/sessions';
 import * as attendanceApi from '../api/attendance';
+import { useSessionSelection } from '../hooks/useSessionQueryParam';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
 import ErrorMessage from '../components/ErrorMessage';
@@ -106,7 +107,7 @@ function ConfirmModal({ message, confirmLabel = 'Confirm', onConfirm, onClose }:
 // ── Main Page ─────────────────────────────────────────────────
 export default function AttendancePage() {
   const [sessions, setSessions] = useState<TrainingSession[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const { selectedId, selectSession } = useSessionSelection(sessions);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
 
@@ -130,9 +131,6 @@ export default function AttendancePage() {
     try {
       const data = await sessionApi.listSessions();
       setSessions(data);
-      if (data.length > 0) {
-        setSelectedId(prev => prev ?? data[0].id);
-      }
     } catch (err) {
       setSessionsError(err instanceof Error ? err.message : 'Failed to load sessions');
     } finally {
@@ -170,7 +168,7 @@ export default function AttendancePage() {
       notes: notes.trim() || undefined,
     });
     setSessions(prev => [session, ...prev]);
-    setSelectedId(session.id);
+    selectSession(session.id);
     setShowNewSession(false);
   };
 
@@ -195,7 +193,6 @@ export default function AttendancePage() {
       setSessions(remaining);
       setDeletingSessionId(null);
       if (selectedId === deletingSessionId) {
-        setSelectedId(remaining.length > 0 ? remaining[0].id : null);
         setAttendance([]);
       }
     } catch (err) {
@@ -310,7 +307,7 @@ export default function AttendancePage() {
               <select
                 className="filter-select session-select"
                 value={selectedId ?? ''}
-                onChange={e => setSelectedId(Number(e.target.value))}
+                onChange={e => selectSession(Number(e.target.value))}
               >
                 {sessions.map(s => (
                   <option key={s.id} value={s.id}>

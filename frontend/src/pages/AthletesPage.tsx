@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Athlete, ClothingSize, Sex } from '../types/athlete';
 import * as athleteApi from '../api/athletes';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -91,11 +92,8 @@ function exportToCsv(list: Athlete[]) {
 }
 
 // ── Main Page ─────────────────────────────────────────────────
-interface AthletesPageProps {
-  onViewProfile: (athlete: Athlete) => void;
-}
-
-export default function AthletesPage({ onViewProfile }: AthletesPageProps) {
+export default function AthletesPage() {
+  const navigate = useNavigate();
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -258,7 +256,7 @@ export default function AthletesPage({ onViewProfile }: AthletesPageProps) {
                       <td>
                         <div className="athlete-name-cell">
                           <div className={`avatar avatar--${a.sex}`}>{initials(a.name)}</div>
-                          <span className="athlete-name-link" onClick={() => onViewProfile(a)}>{a.name}</span>
+                          <span className="athlete-name-link" onClick={() => navigate(`/athletes/${a.id}`)}>{a.name}</span>
                         </div>
                       </td>
                       <td className="capitalize">{a.sex}</td>

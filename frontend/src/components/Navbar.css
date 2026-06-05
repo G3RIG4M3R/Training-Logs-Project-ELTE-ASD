@@ -24,6 +24,7 @@
 }
 
 .navbar-link {
+  display: inline-block;
   padding: 6px 14px;
   border-radius: var(--radius-sm);
   border: none;
@@ -31,6 +32,7 @@
   font-size: 0.875rem;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.55);
+  text-decoration: none;
   transition: color 0.15s, background 0.15s;
 }
 

@@ -1,29 +1,28 @@
+import { NavLink } from 'react-router-dom';
 import './Navbar.css';
 
-interface NavbarProps {
-  currentPage: string;
-  onNavigate: (page: string) => void;
-}
-
 const LINKS = [
-  { id: 'athletes', label: 'Athletes' },
-  { id: 'attendance', label: 'Attendance' },
-  { id: 'results', label: 'Results' },
+  { to: '/athletes', label: 'Athletes', end: true },
+  { to: '/attendance', label: 'Attendance', end: false },
+  { to: '/results', label: 'Results', end: false },
 ];
 
-export default function Navbar({ currentPage, onNavigate }: NavbarProps) {
+export default function Navbar() {
   return (
     <nav className="navbar">
       <span className="navbar-logo">TrainingLog</span>
       <div className="navbar-links">
         {LINKS.map(link => (
-          <button
-            key={link.id}
-            className={`navbar-link ${currentPage === link.id ? 'navbar-link--active' : ''}`}
-            onClick={() => onNavigate(link.id)}
+          <NavLink
+            key={link.to}
+            to={link.to}
+            end={link.end}
+            className={({ isActive }) =>
+              `navbar-link${isActive ? ' navbar-link--active' : ''}`
+            }
           >
             {link.label}
-          </button>
+          </NavLink>
         ))}
       </div>
     </nav>
