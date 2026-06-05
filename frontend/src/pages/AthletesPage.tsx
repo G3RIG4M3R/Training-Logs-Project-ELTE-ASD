@@ -1,5 +1,9 @@
-import { useState } from 'react';
-import type { Athlete } from '../types/athlete';
+import { useState, useEffect, useCallback } from 'react';
+import type { Athlete, ClothingSize, Sex } from '../types/athlete';
+import * as athleteApi from '../api/athletes';
+import LoadingSpinner from '../components/LoadingSpinner';
+import ErrorMessage from '../components/ErrorMessage';
+import EmptyState from '../components/EmptyState';
 import './AthletesPage.css';
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -16,16 +20,7 @@ function initials(name: string): string {
   return name.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2);
 }
 
-const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'] as const;
-
-// ── Mock Data ─────────────────────────────────────────────────
-const MOCK_ATHLETES: Athlete[] = [
-  { id: 1, name: 'Kovács Bence',  dateOfBirth: '2005-03-14', sex: 'male',   height: 182, weight: 74, shirtSize: 'L',  shortSize: 'L',  shoeSize: 43, notes: 'Sprinter' },
-  { id: 2, name: 'Nagy Eszter',   dateOfBirth: '2006-07-22', sex: 'female', height: 168, weight: 58, shirtSize: 'S',  shortSize: 'S',  shoeSize: 38 },
-  { id: 3, name: 'Tóth Márk',     dateOfBirth: '2004-11-05', sex: 'male',   height: 175, weight: 68, shirtSize: 'M',  shortSize: 'M',  shoeSize: 42, notes: 'Middle distance' },
-  { id: 4, name: 'Szabó Anna',    dateOfBirth: '2007-02-18', sex: 'female', height: 163, weight: 52, shirtSize: 'XS', shortSize: 'XS', shoeSize: 37 },
-  { id: 5, name: 'Horváth Péter', dateOfBirth: '2003-08-30', sex: 'male',   height: 188, weight: 82, shirtSize: 'XL', shortSize: 'XL', shoeSize: 45, notes: 'Shot put & discus' },
-];
+const SIZES: ClothingSize[] = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 
 // ── Empty form ────────────────────────────────────────────────
 const EMPTY_FORM: Omit<Athlete, 'id'> = {
@@ -39,13 +34,15 @@ const EMPTY_FORM: Omit<Athlete, 'id'> = {
 interface FormModalProps {
   initial: Omit<Athlete, 'id'>;
   title: string;
-  onSave: (data: Omit<Athlete, 'id'>) => void;
+  onSave: (data: Omit<Athlete, 'id'>) => Promise<void>;
   onClose: () => void;
 }
 
 function AthleteFormModal({ initial, title, onSave, onClose }: FormModalProps) {
   const [form, setForm] = useState(initial);
   const [errors, setErrors] = useState<Partial<Record<keyof Omit<Athlete, 'id'>, string>>>({});
+  const [saving, setSaving] = useState(false);
+  const [apiError, setApiError] = useState('');
 
   const set = <K extends keyof typeof form>(key: K, val: typeof form[K]) => {
     setForm(f => ({ ...f, [key]: val }));
@@ -63,9 +60,17 @@ function AthleteFormModal({ initial, title, onSave, onClose }: FormModalProps) {
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = (ev: React.FormEvent) => {
+  const handleSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault();
-    if (validate()) onSave(form);
+    if (!validate()) return;
+    setSaving(true);
+    setApiError('');
+    try {
+      await onSave(form);
+    } catch (err) {
+      setApiError(err instanceof Error ? err.message : 'Failed to save athlete');
+      setSaving(false);
+    }
   };
 
   return (
@@ -94,7 +99,7 @@ function AthleteFormModal({ initial, title, onSave, onClose }: FormModalProps) {
             </div>
             <div className="form-field">
               <label>Sex *</label>
-              <select value={form.sex} onChange={e => set('sex', e.target.value as Athlete['sex'])}>
+              <select value={form.sex} onChange={e => set('sex', e.target.value as Sex)}>
                 <option value="male">Male</option>
                 <option value="female">Female</option>
                 <option value="other">Other</option>
@@ -147,13 +152,17 @@ function AthleteFormModal({ initial, title, onSave, onClose }: FormModalProps) {
           <p className="form-section-label">Notes</p>
           <div className="form-row">
             <div className="form-field form-field--full">
-              <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2} placeholder="Any relevant notes…" />
+              <textarea value={form.notes ?? ''} onChange={e => set('notes', e.target.value)} rows={2} placeholder="Any relevant notes…" />
             </div>
           </div>
 
+          {apiError && <p className="field-error">{apiError}</p>}
+
           <div className="form-actions">
             <button type="button" className="btn btn--secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn--primary">Save Athlete</button>
+            <button type="submit" className="btn btn--primary" disabled={saving}>
+              {saving ? 'Saving…' : 'Save Athlete'}
+            </button>
           </div>
         </form>
       </div>
@@ -162,7 +171,13 @@ function AthleteFormModal({ initial, title, onSave, onClose }: FormModalProps) {
 }
 
 // ── Delete Confirm Modal ──────────────────────────────────────
-function DeleteModal({ name, onConfirm, onClose }: { name: string; onConfirm: () => void; onClose: () => void }) {
+function DeleteModal({ name, onConfirm, onClose, error }: { name: string; onConfirm: () => Promise<void>; onClose: () => void; error: string }) {
+  const [deleting, setDeleting] = useState(false);
+  const handleConfirm = async () => {
+    setDeleting(true);
+    await onConfirm();
+    setDeleting(false);
+  };
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal modal--sm" onClick={e => e.stopPropagation()}>
@@ -170,9 +185,12 @@ function DeleteModal({ name, onConfirm, onClose }: { name: string; onConfirm: ()
           <div className="delete-icon">🗑️</div>
           <h2>Remove athlete?</h2>
           <p>Are you sure you want to remove <strong>{name}</strong>? This cannot be undone.</p>
+          {error && <p className="field-error">{error}</p>}
           <div className="form-actions">
             <button className="btn btn--secondary" onClick={onClose}>Cancel</button>
-            <button className="btn btn--danger" onClick={onConfirm}>Yes, Remove</button>
+            <button className="btn btn--danger" onClick={handleConfirm} disabled={deleting}>
+              {deleting ? 'Removing…' : 'Yes, Remove'}
+            </button>
           </div>
         </div>
       </div>
@@ -184,7 +202,7 @@ function DeleteModal({ name, onConfirm, onClose }: { name: string; onConfirm: ()
 type SortKey = 'name' | 'sex' | 'age' | 'height' | 'weight' | 'shirtSize' | 'shortSize' | 'shoeSize';
 type SortDir = 'asc' | 'desc';
 
-const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+const SIZE_ORDER: ClothingSize[] = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 
 function sortAthletes(list: Athlete[], key: SortKey, dir: SortDir): Athlete[] {
   return [...list].sort((a, b) => {
@@ -201,18 +219,11 @@ function sortAthletes(list: Athlete[], key: SortKey, dir: SortDir): Athlete[] {
 function exportToCsv(list: Athlete[]) {
   const headers = ['Name', 'Gender', 'Age', 'Height (cm)', 'Weight (kg)', 'Shirt', 'Shorts', 'Shoe (EU)'];
   const rows = list.map(a => [
-    `"${a.name}"`,
-    a.sex,
-    calcAge(a.dateOfBirth),
-    a.height,
-    a.weight,
-    a.shirtSize,
-    a.shortSize,
-    a.shoeSize,
+    `"${a.name}"`, a.sex, calcAge(a.dateOfBirth),
+    a.height, a.weight, a.shirtSize, a.shortSize, a.shoeSize,
   ]);
   const csv = [headers, ...rows].map(r => r.join(';')).join('\n');
-  const BOM = '\uFEFF';
-  const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -227,11 +238,36 @@ interface AthletesPageProps {
 }
 
 export default function AthletesPage({ onViewProfile }: AthletesPageProps) {
-  const [athletes, setAthletes] = useState<Athlete[]>(MOCK_ATHLETES);
+  const [athletes, setAthletes] = useState<Athlete[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
   const [search, setSearch] = useState('');
-  const [sexFilter, setSexFilter] = useState<'all' | Athlete['sex']>('all');
+  const [sexFilter, setSexFilter] = useState<'all' | Sex>('all');
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
+
+  const [modal, setModal] = useState<
+    | { type: 'none' }
+    | { type: 'add' }
+    | { type: 'edit'; athlete: Athlete }
+    | { type: 'delete'; athlete: Athlete; error: string }
+  >({ type: 'none' });
+
+  const loadAthletes = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await athleteApi.listAthletes();
+      setAthletes(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load athletes');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadAthletes(); }, [loadAthletes]);
 
   const handleSort = (key: SortKey) => {
     if (key === sortKey) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -243,30 +279,38 @@ export default function AthletesPage({ onViewProfile }: AthletesPageProps) {
     return <span className="sort-icon">{sortDir === 'asc' ? '↑' : '↓'}</span>;
   };
 
-  const [modal, setModal] = useState<
-    | { type: 'none' }
-    | { type: 'add' }
-    | { type: 'edit'; athlete: Athlete }
-    | { type: 'delete'; athlete: Athlete }
-  >({ type: 'none' });
-
-  const nextId = () => Math.max(0, ...athletes.map(a => a.id)) + 1;
-
-  const handleAdd = (data: Omit<Athlete, 'id'>) => {
-    setAthletes(prev => [...prev, { ...data, id: nextId() }].sort((a, b) => a.name.localeCompare(b.name)));
+  const handleAdd = async (data: Omit<Athlete, 'id'>) => {
+    await athleteApi.createAthlete({
+      name: data.name, dateOfBirth: data.dateOfBirth,
+      sex: data.sex, height: data.height, weight: data.weight,
+      shirtSize: data.shirtSize, shortSize: data.shortSize, shoeSize: data.shoeSize,
+      notes: data.notes?.trim() || undefined,
+    });
+    await loadAthletes();
     setModal({ type: 'none' });
   };
 
-  const handleEdit = (data: Omit<Athlete, 'id'>) => {
+  const handleEdit = async (data: Omit<Athlete, 'id'>) => {
     if (modal.type !== 'edit') return;
-    setAthletes(prev => prev.map(a => a.id === modal.athlete.id ? { ...data, id: a.id } : a));
+    await athleteApi.updateAthlete(modal.athlete.id, {
+      name: data.name, dateOfBirth: data.dateOfBirth,
+      sex: data.sex, height: data.height, weight: data.weight,
+      shirtSize: data.shirtSize, shortSize: data.shortSize, shoeSize: data.shoeSize,
+      notes: data.notes?.trim() || undefined,
+    });
+    await loadAthletes();
     setModal({ type: 'none' });
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (modal.type !== 'delete') return;
-    setAthletes(prev => prev.filter(a => a.id !== modal.athlete.id));
-    setModal({ type: 'none' });
+    try {
+      await athleteApi.deleteAthlete(modal.athlete.id);
+      await loadAthletes();
+      setModal({ type: 'none' });
+    } catch (err) {
+      setModal(m => m.type === 'delete' ? { ...m, error: err instanceof Error ? err.message : 'Delete failed' } : m);
+    }
   };
 
   const filtered = sortAthletes(
@@ -275,8 +319,7 @@ export default function AthletesPage({ onViewProfile }: AthletesPageProps) {
       const matchSex = sexFilter === 'all' || a.sex === sexFilter;
       return matchSearch && matchSex;
     }),
-    sortKey,
-    sortDir
+    sortKey, sortDir,
   );
 
   return (
@@ -284,11 +327,11 @@ export default function AthletesPage({ onViewProfile }: AthletesPageProps) {
       {/* Header */}
       <div className="page-header">
         <div>
-          <h1 className="page-title">Athletes (Mock Data!)</h1>
+          <h1 className="page-title">Athletes</h1>
           <p className="page-subtitle">{athletes.length} total athletes</p>
         </div>
         <div className="page-header-actions">
-          <button className="btn btn--secondary" onClick={() => exportToCsv(filtered)}>
+          <button className="btn btn--secondary" onClick={() => exportToCsv(filtered)} disabled={filtered.length === 0}>
             ↓ Export CSV
           </button>
           <button className="btn btn--primary" onClick={() => setModal({ type: 'add' })}>
@@ -297,75 +340,89 @@ export default function AthletesPage({ onViewProfile }: AthletesPageProps) {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="filters">
-        <input
-          className="filter-search"
-          type="text"
-          placeholder="Search by name…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-        <select className="filter-select" value={sexFilter} onChange={e => setSexFilter(e.target.value as typeof sexFilter)}>
-          <option value="all">All Genders</option>
-          <option value="male">Male</option>
-          <option value="female">Female</option>
-          <option value="other">Other</option>
-        </select>
-        <span className="filter-count">
-          {filtered.length !== athletes.length ? `${filtered.length} of ${athletes.length}` : `${athletes.length} athletes`}
-        </span>
-      </div>
-
-      {/* Table */}
-      {filtered.length === 0 ? (
-        <div className="empty">
-          <p>No athletes match your filters.</p>
-          <button className="btn btn--secondary" onClick={() => { setSearch(''); setSexFilter('all'); }}>Clear filters</button>
-        </div>
+      {/* Loading / Error */}
+      {loading ? (
+        <LoadingSpinner />
+      ) : error ? (
+        <ErrorMessage message={error} onRetry={loadAthletes} />
       ) : (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th onClick={() => handleSort('name')}    className="th-sortable">Name      <SortIcon col="name" /></th>
-                <th onClick={() => handleSort('sex')}     className="th-sortable">Gender    <SortIcon col="sex" /></th>
-                <th onClick={() => handleSort('age')}     className="th-sortable">Age       <SortIcon col="age" /></th>
-                <th onClick={() => handleSort('height')}  className="th-sortable">Height    <SortIcon col="height" /></th>
-                <th onClick={() => handleSort('weight')}  className="th-sortable">Weight    <SortIcon col="weight" /></th>
-                <th onClick={() => handleSort('shirtSize')}  className="th-sortable">Shirt  <SortIcon col="shirtSize" /></th>
-                <th onClick={() => handleSort('shortSize')}  className="th-sortable">Shorts <SortIcon col="shortSize" /></th>
-                <th onClick={() => handleSort('shoeSize')}   className="th-sortable">Shoe   <SortIcon col="shoeSize" /></th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(a => (
-                <tr key={a.id} className="table-row">
-                  <td>
-                    <div className="athlete-name-cell">
-                      <div className={`avatar avatar--${a.sex}`}>{initials(a.name)}</div>
-                      <span className="athlete-name-link" onClick={() => onViewProfile(a)}>{a.name}</span>
-                    </div>
-                  </td>
-                  <td className="capitalize">{a.sex}</td>
-                  <td>{calcAge(a.dateOfBirth)}</td>
-                  <td>{a.height} cm</td>
-                  <td>{a.weight} kg</td>
-                  <td><span className="size-tag">{a.shirtSize}</span></td>
-                  <td><span className="size-tag">{a.shortSize}</span></td>
-                  <td>{a.shoeSize}</td>
-                  <td>
-                    <div className="row-actions">
-                      <button className="action-btn action-btn--edit" onClick={() => setModal({ type: 'edit', athlete: a })}>Edit</button>
-                      <button className="action-btn action-btn--delete" onClick={() => setModal({ type: 'delete', athlete: a })}>Delete</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          {/* Filters */}
+          <div className="filters">
+            <input
+              className="filter-search"
+              type="text"
+              placeholder="Search by name…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            <select className="filter-select" value={sexFilter} onChange={e => setSexFilter(e.target.value as typeof sexFilter)}>
+              <option value="all">All Genders</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="other">Other</option>
+            </select>
+            <span className="filter-count">
+              {filtered.length !== athletes.length ? `${filtered.length} of ${athletes.length}` : `${athletes.length} athletes`}
+            </span>
+          </div>
+
+          {/* Table / Empty */}
+          {athletes.length === 0 ? (
+            <EmptyState
+              message="No athletes yet. Add your first athlete to get started."
+              action={{ label: '+ Add Athlete', onClick: () => setModal({ type: 'add' }) }}
+            />
+          ) : filtered.length === 0 ? (
+            <EmptyState
+              message="No athletes match your filters."
+              action={{ label: 'Clear filters', onClick: () => { setSearch(''); setSexFilter('all'); } }}
+            />
+          ) : (
+            <div className="table-wrap">
+              <table className="table athletes-table">
+                <thead>
+                  <tr>
+                    <th onClick={() => handleSort('name')}      className="th-sortable">Name      <SortIcon col="name" /></th>
+                    <th onClick={() => handleSort('sex')}       className="th-sortable">Gender    <SortIcon col="sex" /></th>
+                    <th onClick={() => handleSort('age')}       className="th-sortable">Age       <SortIcon col="age" /></th>
+                    <th onClick={() => handleSort('height')}    className="th-sortable">Height    <SortIcon col="height" /></th>
+                    <th onClick={() => handleSort('weight')}    className="th-sortable">Weight    <SortIcon col="weight" /></th>
+                    <th onClick={() => handleSort('shirtSize')} className="th-sortable">Shirt     <SortIcon col="shirtSize" /></th>
+                    <th onClick={() => handleSort('shortSize')} className="th-sortable">Shorts    <SortIcon col="shortSize" /></th>
+                    <th onClick={() => handleSort('shoeSize')}  className="th-sortable">Shoe      <SortIcon col="shoeSize" /></th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map(a => (
+                    <tr key={a.id} className="table-row">
+                      <td>
+                        <div className="athlete-name-cell">
+                          <div className={`avatar avatar--${a.sex}`}>{initials(a.name)}</div>
+                          <span className="athlete-name-link" onClick={() => onViewProfile(a)}>{a.name}</span>
+                        </div>
+                      </td>
+                      <td className="capitalize">{a.sex}</td>
+                      <td>{calcAge(a.dateOfBirth)}</td>
+                      <td>{a.height} cm</td>
+                      <td>{a.weight} kg</td>
+                      <td><span className="size-tag">{a.shirtSize}</span></td>
+                      <td><span className="size-tag">{a.shortSize}</span></td>
+                      <td>{a.shoeSize}</td>
+                      <td>
+                        <div className="row-actions">
+                          <button className="action-btn action-btn--edit" onClick={() => setModal({ type: 'edit', athlete: a })}>Edit</button>
+                          <button className="action-btn action-btn--delete" onClick={() => setModal({ type: 'delete', athlete: a, error: '' })}>Delete</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
       {/* Modals */}
@@ -381,7 +438,12 @@ export default function AthletesPage({ onViewProfile }: AthletesPageProps) {
         />
       )}
       {modal.type === 'delete' && (
-        <DeleteModal name={modal.athlete.name} onConfirm={handleDelete} onClose={() => setModal({ type: 'none' })} />
+        <DeleteModal
+          name={modal.athlete.name}
+          error={modal.error}
+          onConfirm={handleDelete}
+          onClose={() => setModal({ type: 'none' })}
+        />
       )}
     </div>
   );
