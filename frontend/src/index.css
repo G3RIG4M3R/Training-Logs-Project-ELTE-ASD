@@ -97,6 +97,19 @@ input, select, textarea { font-family: inherit; }
 .btn--danger { background: var(--danger); color: #fff; border-color: var(--danger); }
 .btn--danger:hover:not(:disabled) { background: var(--danger-hover); border-color: var(--danger-hover); }
 
+.btn--icon {
+  background: none;
+  border: 1px solid transparent;
+  padding: 0.25rem 0.4rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  line-height: 1;
+  transition: background 0.15s;
+}
+.btn--icon:hover { background: var(--bg); border-color: var(--border); }
+.btn--icon-danger:hover { background: #fef2f2; border-color: var(--danger); }
+
 /* ── Table ── */
 .table-wrap {
   background: var(--surface);
@@ -386,6 +399,9 @@ input, select, textarea { font-family: inherit; }
 /* ── Result display ── */
 .result-value { font-weight: 600; }
 .result-unit { font-size: 0.78rem; color: var(--text-2); font-weight: 400; margin-left: 2px; }
+.th-actions { width: 80px; text-align: center; }
+.td-actions { text-align: center; white-space: nowrap; }
+.td-notes .notes-text { display: block; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── Utilities ── */
 .capitalize { text-transform: capitalize; }

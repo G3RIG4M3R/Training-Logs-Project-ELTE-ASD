@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session
@@ -28,6 +28,23 @@ def list_sessions(db: Session = Depends(get_db_session)) -> list:
 def create_session(payload: TrainingSessionCreate, db: Session = Depends(get_db_session)):
     """Create a training session with a required date."""
     return session_service.create_session(db, payload)
+
+
+@router.put("/{session_id}", response_model=TrainingSessionRead, summary="Update training session")
+def update_session(
+    session_id: int,
+    payload: TrainingSessionCreate,
+    db: Session = Depends(get_db_session),
+):
+    """Update date, title, and notes for a training session."""
+    return session_service.update_session(db, session_id, payload)
+
+
+@router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete training session")
+def delete_session(session_id: int, db: Session = Depends(get_db_session)) -> Response:
+    """Delete a session that has no linked attendance or results."""
+    session_service.delete_session(db, session_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(

@@ -1,5 +1,10 @@
-/* ── Profile back button ── */
-.profile-back { align-self: flex-start; }
+/* ── Profile back / edit bar ── */
+.profile-back-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
 
 /* ── Profile header ── */
 .profile-header {

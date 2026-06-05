@@ -21,6 +21,89 @@ function initials(name: string): string {
   return name.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2);
 }
 
+// ── Notes edit modal ──────────────────────────────────────────
+interface NotesModalProps {
+  record: AttendanceRecord;
+  onSave: (notes: string) => Promise<void>;
+  onClose: () => void;
+}
+
+function NotesModal({ record, onSave, onClose }: NotesModalProps) {
+  const [notes, setNotes] = useState(record.notes ?? '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      await onSave(notes);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save notes');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal modal--sm" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Edit Notes — {record.athleteName}</h2>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <form onSubmit={handleSubmit} className="form">
+          <div className="form-field">
+            <label>Notes</label>
+            <textarea
+              value={notes}
+              rows={3}
+              maxLength={1000}
+              placeholder="Notes for this attendance record…"
+              onChange={e => setNotes(e.target.value)}
+              autoFocus
+            />
+          </div>
+          {error && <p className="field-error">{error}</p>}
+          <div className="form-actions">
+            <button type="button" className="btn btn--secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn btn--primary" disabled={saving}>
+              {saving ? 'Saving…' : 'Save Notes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Confirm modal ──────────────────────────────────────────────
+interface ConfirmModalProps {
+  message: string;
+  confirmLabel?: string;
+  onConfirm: () => void;
+  onClose: () => void;
+}
+
+function ConfirmModal({ message, confirmLabel = 'Confirm', onConfirm, onClose }: ConfirmModalProps) {
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal modal--sm" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Confirm</h2>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <p style={{ padding: '0 0 1rem' }}>{message}</p>
+        <div className="form-actions">
+          <button className="btn btn--secondary" onClick={onClose}>Cancel</button>
+          <button className="btn btn--danger" onClick={onConfirm}>{confirmLabel}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Page ─────────────────────────────────────────────────
 export default function AttendancePage() {
   const [sessions, setSessions] = useState<TrainingSession[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -32,7 +115,14 @@ export default function AttendancePage() {
   const [sessionsError, setSessionsError] = useState('');
   const [attendanceError, setAttendanceError] = useState('');
   const [savingIds, setSavingIds] = useState<Set<number>>(new Set());
+
   const [showNewSession, setShowNewSession] = useState(false);
+  const [editingSession, setEditingSession] = useState<TrainingSession | null>(null);
+  const [deletingSessionId, setDeletingSessionId] = useState<number | null>(null);
+  const [sessionActionError, setSessionActionError] = useState('');
+
+  const [editingNotesRecord, setEditingNotesRecord] = useState<AttendanceRecord | null>(null);
+  const [clearingRecord, setClearingRecord] = useState<AttendanceRecord | null>(null);
 
   const loadSessions = useCallback(async () => {
     setSessionsLoading(true);
@@ -72,13 +162,49 @@ export default function AttendancePage() {
     if (selectedId !== null) loadAttendance(selectedId);
   }, [selectedId, loadAttendance]);
 
-  const handleCreateSession = async (date: string, title: string) => {
-    const session = await sessionApi.createSession({ date, title: title.trim() || undefined });
+  // ── Session CRUD ──────────────────────────────────────────────
+  const handleCreateSession = async (date: string, title: string, notes: string) => {
+    const session = await sessionApi.createSession({
+      date,
+      title: title.trim() || undefined,
+      notes: notes.trim() || undefined,
+    });
     setSessions(prev => [session, ...prev]);
     setSelectedId(session.id);
     setShowNewSession(false);
   };
 
+  const handleUpdateSession = async (date: string, title: string, notes: string) => {
+    if (!editingSession) return;
+    setSessionActionError('');
+    const updated = await sessionApi.updateSession(editingSession.id, {
+      date,
+      title: title.trim() || undefined,
+      notes: notes.trim() || undefined,
+    });
+    setSessions(prev => prev.map(s => s.id === updated.id ? updated : s));
+    setEditingSession(null);
+  };
+
+  const handleDeleteSession = async () => {
+    if (deletingSessionId === null) return;
+    setSessionActionError('');
+    try {
+      await sessionApi.deleteSession(deletingSessionId);
+      const remaining = sessions.filter(s => s.id !== deletingSessionId);
+      setSessions(remaining);
+      setDeletingSessionId(null);
+      if (selectedId === deletingSessionId) {
+        setSelectedId(remaining.length > 0 ? remaining[0].id : null);
+        setAttendance([]);
+      }
+    } catch (err) {
+      setDeletingSessionId(null);
+      setSessionActionError(err instanceof Error ? err.message : 'Failed to delete session');
+    }
+  };
+
+  // ── Attendance CRUD ───────────────────────────────────────────
   const handleToggleStatus = async (athlete: Athlete, status: AttendanceStatus) => {
     if (selectedId === null) return;
     const existing = attendance.find(r => r.athleteId === athlete.id);
@@ -87,10 +213,18 @@ export default function AttendancePage() {
     setSavingIds(prev => new Set(prev).add(athlete.id));
     try {
       if (existing) {
-        const updated = await attendanceApi.updateAttendance(existing.id, { status });
+        // Pass existing notes to avoid wiping them on status toggle
+        const updated = await attendanceApi.updateAttendance(existing.id, {
+          status,
+          notes: existing.notes,
+        });
         setAttendance(prev => prev.map(r => r.id === existing.id ? updated : r));
       } else {
-        const created = await attendanceApi.createAttendance({ athleteId: athlete.id, sessionId: selectedId, status });
+        const created = await attendanceApi.createAttendance({
+          athleteId: athlete.id,
+          sessionId: selectedId,
+          status,
+        });
         setAttendance(prev => [...prev, created]);
       }
     } catch (err) {
@@ -98,6 +232,23 @@ export default function AttendancePage() {
     } finally {
       setSavingIds(prev => { const s = new Set(prev); s.delete(athlete.id); return s; });
     }
+  };
+
+  const handleSaveNotes = async (notes: string) => {
+    if (!editingNotesRecord) return;
+    const updated = await attendanceApi.updateAttendance(editingNotesRecord.id, {
+      status: editingNotesRecord.status,
+      notes: notes.trim() || undefined,
+    });
+    setAttendance(prev => prev.map(r => r.id === updated.id ? updated : r));
+    setEditingNotesRecord(null);
+  };
+
+  const handleClearRecord = async () => {
+    if (!clearingRecord) return;
+    await attendanceApi.deleteAttendance(clearingRecord.id);
+    setAttendance(prev => prev.filter(r => r.id !== clearingRecord.id));
+    setClearingRecord(null);
   };
 
   const exportCsv = () => {
@@ -122,6 +273,8 @@ export default function AttendancePage() {
   const absentCount  = attendance.filter(r => r.status === 'absent').length;
   const excusedCount = attendance.filter(r => r.status === 'excused').length;
   const notRecorded  = athletes.length - attendance.length;
+
+  const selectedSession = sessions.find(s => s.id === selectedId);
 
   return (
     <div className="page">
@@ -150,7 +303,7 @@ export default function AttendancePage() {
         />
       ) : (
         <>
-          {/* Session selector + stats */}
+          {/* Session selector bar */}
           <div className="session-bar">
             <div className="session-selector">
               <label className="session-label">Session</label>
@@ -165,6 +318,20 @@ export default function AttendancePage() {
                   </option>
                 ))}
               </select>
+              {selectedSession && (
+                <>
+                  <button
+                    className="btn btn--icon"
+                    title="Edit session"
+                    onClick={() => { setSessionActionError(''); setEditingSession(selectedSession); }}
+                  >✏️</button>
+                  <button
+                    className="btn btn--icon btn--icon-danger"
+                    title="Delete session"
+                    onClick={() => { setSessionActionError(''); setDeletingSessionId(selectedSession.id); }}
+                  >🗑️</button>
+                </>
+              )}
             </div>
             {selectedId !== null && !attendanceLoading && (
               <div className="attendance-stats">
@@ -175,6 +342,10 @@ export default function AttendancePage() {
               </div>
             )}
           </div>
+
+          {sessionActionError && (
+            <ErrorMessage message={sessionActionError} onRetry={() => setSessionActionError('')} />
+          )}
 
           {/* Attendance error */}
           {attendanceError && (
@@ -197,6 +368,7 @@ export default function AttendancePage() {
                     <th>Athlete</th>
                     <th>Status</th>
                     <th className="th-notes">Notes</th>
+                    <th className="th-actions">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -229,7 +401,26 @@ export default function AttendancePage() {
                           </div>
                         </td>
                         <td className="td-notes">
-                          {rec?.notes || <span className="text-muted">—</span>}
+                          {rec?.notes
+                            ? <span className="notes-text" title={rec.notes}>{rec.notes}</span>
+                            : <span className="text-muted">—</span>
+                          }
+                        </td>
+                        <td className="td-actions">
+                          {rec && (
+                            <>
+                              <button
+                                className="btn btn--icon"
+                                title="Edit notes"
+                                onClick={() => setEditingNotesRecord(rec)}
+                              >✏️</button>
+                              <button
+                                className="btn btn--icon btn--icon-danger"
+                                title="Clear attendance"
+                                onClick={() => setClearingRecord(rec)}
+                              >✕</button>
+                            </>
+                          )}
                         </td>
                       </tr>
                     );
@@ -241,10 +432,41 @@ export default function AttendancePage() {
         </>
       )}
 
+      {/* Modals */}
       {showNewSession && (
         <NewSessionModal
           onSave={handleCreateSession}
           onClose={() => setShowNewSession(false)}
+        />
+      )}
+      {editingSession && (
+        <NewSessionModal
+          initial={editingSession}
+          onSave={handleUpdateSession}
+          onClose={() => setEditingSession(null)}
+        />
+      )}
+      {deletingSessionId !== null && (
+        <ConfirmModal
+          message={`Delete session "${selectedSession?.title || formatDate(selectedSession?.date ?? '')}"? This is only possible if it has no attendance or results.`}
+          confirmLabel="Delete Session"
+          onConfirm={handleDeleteSession}
+          onClose={() => setDeletingSessionId(null)}
+        />
+      )}
+      {editingNotesRecord && (
+        <NotesModal
+          record={editingNotesRecord}
+          onSave={handleSaveNotes}
+          onClose={() => setEditingNotesRecord(null)}
+        />
+      )}
+      {clearingRecord && (
+        <ConfirmModal
+          message={`Clear attendance record for ${clearingRecord.athleteName}?`}
+          confirmLabel="Clear Record"
+          onConfirm={handleClearRecord}
+          onClose={() => setClearingRecord(null)}
         />
       )}
     </div>

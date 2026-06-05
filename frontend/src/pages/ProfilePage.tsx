@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getAthleteProfile } from '../api/athletes';
-import type { AthleteProfile } from '../types/athlete';
+import { getAthleteProfile, updateAthlete } from '../api/athletes';
+import type { Athlete, AthleteProfile } from '../types/athlete';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
+import AthleteFormModal from '../components/AthleteFormModal';
 import './ProfilePage.css';
 
 function calcAge(dob: string): number {
@@ -33,6 +34,7 @@ export default function ProfilePage({ athleteId, onBack }: ProfilePageProps) {
   const [profile, setProfile] = useState<AthleteProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [editing, setEditing] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -48,7 +50,7 @@ export default function ProfilePage({ athleteId, onBack }: ProfilePageProps) {
   if (loading) {
     return (
       <div className="page">
-        <button className="btn btn--secondary profile-back" onClick={onBack}>← Back</button>
+        <button className="btn btn--secondary" onClick={onBack} style={{ marginBottom: '1rem' }}>← Back</button>
         <LoadingSpinner />
       </div>
     );
@@ -57,13 +59,29 @@ export default function ProfilePage({ athleteId, onBack }: ProfilePageProps) {
   if (error) {
     return (
       <div className="page">
-        <button className="btn btn--secondary profile-back" onClick={onBack}>← Back</button>
+        <button className="btn btn--secondary" onClick={onBack} style={{ marginBottom: '1rem' }}>← Back</button>
         <ErrorMessage message={error} onRetry={load} />
       </div>
     );
   }
 
   if (!profile) return null;
+
+  const handleSaveEdit = async (data: Omit<Athlete, 'id'>) => {
+    await updateAthlete(athleteId, {
+      name: data.name,
+      dateOfBirth: data.dateOfBirth,
+      sex: data.sex,
+      height: data.height,
+      weight: data.weight,
+      shirtSize: data.shirtSize,
+      shortSize: data.shortSize,
+      shoeSize: data.shoeSize,
+      notes: data.notes?.trim() || undefined,
+    });
+    await load();
+    setEditing(false);
+  };
 
   const s = profile.attendanceSummary;
   const attendanceRate = s.totalSessions > 0
@@ -73,7 +91,10 @@ export default function ProfilePage({ athleteId, onBack }: ProfilePageProps) {
   return (
     <div className="page">
       {/* Back button */}
-      <button className="btn btn--secondary profile-back" onClick={onBack}>← Back to Athletes</button>
+      <div className="profile-back-bar">
+        <button className="btn btn--secondary" onClick={onBack}>← Back to Athletes</button>
+        <button className="btn btn--primary" onClick={() => setEditing(true)}>Edit Athlete</button>
+      </div>
 
       {/* Profile header */}
       <div className="profile-header">
@@ -199,6 +220,25 @@ export default function ProfilePage({ athleteId, onBack }: ProfilePageProps) {
           </div>
         )}
       </div>
+
+      {editing && (
+        <AthleteFormModal
+          title="Edit Athlete"
+          initial={{
+            name: profile.name,
+            dateOfBirth: profile.dateOfBirth,
+            sex: profile.sex,
+            height: profile.height,
+            weight: profile.weight,
+            shirtSize: profile.shirtSize,
+            shortSize: profile.shortSize,
+            shoeSize: profile.shoeSize,
+            notes: profile.notes ?? '',
+          }}
+          onSave={handleSaveEdit}
+          onClose={() => setEditing(false)}
+        />
+      )}
     </div>
   );
 }
