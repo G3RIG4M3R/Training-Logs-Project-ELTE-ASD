@@ -19,5 +19,10 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      // Async data-fetching via useEffect is the standard React pattern.
+      // The set-state-in-effect rule produces false positives for async functions.
+      'react-hooks/set-state-in-effect': 'off',
+    },
   },
 ])

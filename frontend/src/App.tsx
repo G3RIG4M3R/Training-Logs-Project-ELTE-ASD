@@ -10,22 +10,29 @@ type Page = 'athletes' | 'attendance' | 'results';
 
 export default function App() {
   const [page, setPage] = useState<Page>('athletes');
-  const [selectedAthlete, setSelectedAthlete] = useState<Athlete | null>(null);
+  const [selectedAthleteId, setSelectedAthleteId] = useState<number | null>(null);
 
   const handleNavigate = (p: string) => {
-    setSelectedAthlete(null);
+    setSelectedAthleteId(null);
     setPage(p as Page);
+  };
+
+  const handleViewProfile = (athlete: Athlete) => {
+    setSelectedAthleteId(athlete.id);
   };
 
   return (
     <>
-      <Navbar currentPage={page} onNavigate={handleNavigate} />
+      <Navbar currentPage={selectedAthleteId !== null ? '' : page} onNavigate={handleNavigate} />
       <main className="main">
-        {selectedAthlete ? (
-          <ProfilePage athlete={selectedAthlete} onBack={() => setSelectedAthlete(null)} />
+        {selectedAthleteId !== null ? (
+          <ProfilePage
+            athleteId={selectedAthleteId}
+            onBack={() => setSelectedAthleteId(null)}
+          />
         ) : (
           <>
-            {page === 'athletes'   && <AthletesPage onViewProfile={setSelectedAthlete} />}
+            {page === 'athletes'   && <AthletesPage onViewProfile={handleViewProfile} />}
             {page === 'attendance' && <AttendancePage />}
             {page === 'results'    && <ResultsPage />}
           </>
