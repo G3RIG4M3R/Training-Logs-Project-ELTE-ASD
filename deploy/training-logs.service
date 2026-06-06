@@ -1,0 +1,16 @@
+[Unit]
+Description=Training Logs FastAPI backend
+After=network.target
+
+[Service]
+User=trl
+Group=trl
+WorkingDirectory=/home/trl/Training-Logs-Project-ELTE-ASD/backend
+Environment=DATABASE_URL=sqlite:////home/trl/Training-Logs-Project-ELTE-ASD/backend/training_logs.sqlite3
+Environment=CORS_ORIGINS=http://46.225.157.46
+ExecStart=/home/trl/Training-Logs-Project-ELTE-ASD/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

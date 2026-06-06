@@ -1,14 +1,22 @@
-const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000';
+const envBase = import.meta.env.VITE_API_URL as string | undefined;
+const BASE = envBase ?? (import.meta.env.DEV ? 'http://localhost:8000' : '/api');
 
 export class ApiError extends Error {
+  public readonly code: string;
+  public readonly status: number;
+  public readonly details: unknown[];
+
   constructor(
-    public readonly code: string,
+    code: string,
     message: string,
-    public readonly status: number,
-    public readonly details: unknown[] = [],
+    status: number,
+    details: unknown[] = [],
   ) {
     super(message);
     this.name = 'ApiError';
+    this.code = code;
+    this.status = status;
+    this.details = details;
   }
 }
 
