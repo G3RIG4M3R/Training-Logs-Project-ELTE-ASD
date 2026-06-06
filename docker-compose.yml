@@ -2,15 +2,16 @@ services:
   backend:
     build:
       context: ./backend
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     volumes:
       # Persist the SQLite database file outside the container
       - sqlite_data:/app/data
     environment:
       - DATABASE_URL=sqlite:////app/data/training_logs.sqlite3
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -19,13 +20,14 @@ services:
     build:
       context: ./frontend
       args:
-        # At build time, point the frontend at the backend
-        VITE_API_URL: http://localhost:8000
+        # In production the frontend calls /api, and nginx proxies that to the backend service.
+        VITE_API_URL: /api
     ports:
       - "80:80"
     depends_on:
       backend:
         condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   sqlite_data:

@@ -91,3 +91,57 @@ pip install -r requirements.txt
 sudo systemctl restart training-logs
 sudo systemctl reload nginx
 ```
+
+## Docker Compose Deployment
+
+The repo now also supports a containerized deployment path:
+
+- `frontend` serves the built React app on port `80`
+- `frontend` proxies `/api/*` to the `backend` container
+- `backend` stores SQLite data in the `sqlite_data` Docker volume
+
+### 1. Install Docker
+
+```bash
+sudo apt update
+sudo apt install -y docker.io docker-compose-plugin
+sudo systemctl enable --now docker
+```
+
+### 2. If the old host deployment is still running, stop it first
+
+The old deployment also uses port `80`, so it must be stopped before Docker can bind that port:
+
+```bash
+sudo systemctl stop nginx
+sudo systemctl stop training-logs
+```
+
+### 3. Start the containers
+
+```bash
+cd /home/trl/Training-Logs-Project-ELTE-ASD
+sudo docker compose up -d --build
+```
+
+### 4. Check container status
+
+```bash
+sudo docker compose ps
+sudo docker compose logs --tail=100
+```
+
+### 5. Update to a newer version later
+
+```bash
+cd /home/trl/Training-Logs-Project-ELTE-ASD
+git pull
+sudo docker compose up -d --build
+```
+
+### 6. Stop or roll back the Docker deployment
+
+```bash
+cd /home/trl/Training-Logs-Project-ELTE-ASD
+sudo docker compose down
+```
