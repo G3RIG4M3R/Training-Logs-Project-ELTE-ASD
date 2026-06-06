@@ -58,6 +58,12 @@ def update_attendance(db: Session, attendance_id: int, payload: AttendanceUpdate
     return get_attendance(db, attendance.id)
 
 
+def delete_attendance(db: Session, attendance_id: int) -> None:
+    attendance = get_attendance(db, attendance_id)
+    db.delete(attendance)
+    db.commit()
+
+
 def list_session_attendance(db: Session, session_id: int) -> list[Attendance]:
     get_session(db, session_id)
     statement = (

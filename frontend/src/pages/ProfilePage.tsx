@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getAthleteProfile } from '../api/athletes';
-import type { AthleteProfile } from '../types/athlete';
+import { useParams, useNavigate } from 'react-router-dom';
+import { getAthleteProfile, updateAthlete } from '../api/athletes';
+import type { Athlete, AthleteProfile } from '../types/athlete';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
+import AthleteFormModal from '../components/AthleteFormModal';
+import ResultListCard from '../components/ResultListCard';
 import './ProfilePage.css';
 
 function calcAge(dob: string): number {
@@ -24,17 +27,26 @@ function formatDate(dateStr: string): string {
   });
 }
 
-interface ProfilePageProps {
-  athleteId: number;
-  onBack: () => void;
+function parseAthleteId(param: string | undefined): number | null {
+  if (!param) return null;
+  const id = Number(param);
+  return Number.isInteger(id) && id > 0 ? id : null;
 }
 
-export default function ProfilePage({ athleteId, onBack }: ProfilePageProps) {
+export default function ProfilePage() {
+  const { athleteId: athleteIdParam } = useParams();
+  const navigate = useNavigate();
+  const athleteId = parseAthleteId(athleteIdParam);
+
   const [profile, setProfile] = useState<AthleteProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [editing, setEditing] = useState(false);
+
+  const goBack = () => navigate('/athletes');
 
   const load = useCallback(() => {
+    if (athleteId === null) return;
     setLoading(true);
     setError('');
     getAthleteProfile(athleteId)
@@ -43,12 +55,39 @@ export default function ProfilePage({ athleteId, onBack }: ProfilePageProps) {
       .finally(() => setLoading(false));
   }, [athleteId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (athleteId === null) {
+      navigate('/athletes', { replace: true });
+      return;
+    }
+    load();
+  }, [athleteId, load, navigate]);
+
+  const handleSaveEdit = async (data: Omit<Athlete, 'id'>) => {
+    if (athleteId === null) return;
+    await updateAthlete(athleteId, {
+      name: data.name,
+      dateOfBirth: data.dateOfBirth,
+      sex: data.sex,
+      height: data.height,
+      weight: data.weight,
+      shirtSize: data.shirtSize,
+      shortSize: data.shortSize,
+      shoeSize: data.shoeSize,
+      notes: data.notes?.trim() || undefined,
+    });
+    load();
+    setEditing(false);
+  };
+
+  if (athleteId === null) {
+    return null;
+  }
 
   if (loading) {
     return (
       <div className="page">
-        <button className="btn btn--secondary profile-back" onClick={onBack}>← Back</button>
+        <button className="btn btn--secondary" onClick={goBack} style={{ marginBottom: '1rem' }}>← Back</button>
         <LoadingSpinner />
       </div>
     );
@@ -57,7 +96,7 @@ export default function ProfilePage({ athleteId, onBack }: ProfilePageProps) {
   if (error) {
     return (
       <div className="page">
-        <button className="btn btn--secondary profile-back" onClick={onBack}>← Back</button>
+        <button className="btn btn--secondary" onClick={goBack} style={{ marginBottom: '1rem' }}>← Back</button>
         <ErrorMessage message={error} onRetry={load} />
       </div>
     );
@@ -72,10 +111,11 @@ export default function ProfilePage({ athleteId, onBack }: ProfilePageProps) {
 
   return (
     <div className="page">
-      {/* Back button */}
-      <button className="btn btn--secondary profile-back" onClick={onBack}>← Back to Athletes</button>
+      <div className="profile-back-bar">
+        <button className="btn btn--secondary" onClick={goBack}>← Back to Athletes</button>
+        <button className="btn btn--primary" onClick={() => setEditing(true)}>Edit Athlete</button>
+      </div>
 
-      {/* Profile header */}
       <div className="profile-header">
         <div className={`avatar avatar--${profile.sex} avatar--lg`}>
           {initials(profile.name)}
@@ -93,9 +133,7 @@ export default function ProfilePage({ athleteId, onBack }: ProfilePageProps) {
         </div>
       </div>
 
-      {/* Cards row */}
       <div className="profile-cards">
-        {/* Physical stats */}
         <div className="profile-card">
           <h3 className="card-title">Physical Stats</h3>
           <div className="stat-grid">
@@ -110,7 +148,6 @@ export default function ProfilePage({ athleteId, onBack }: ProfilePageProps) {
           </div>
         </div>
 
-        {/* Gear sizes */}
         <div className="profile-card">
           <h3 className="card-title">Gear Sizes</h3>
           <div className="stat-grid">
@@ -129,7 +166,6 @@ export default function ProfilePage({ athleteId, onBack }: ProfilePageProps) {
           </div>
         </div>
 
-        {/* Attendance summary */}
         <div className="profile-card">
           <h3 className="card-title">Attendance</h3>
           {s.totalSessions === 0 ? (
@@ -163,42 +199,78 @@ export default function ProfilePage({ athleteId, onBack }: ProfilePageProps) {
         </div>
       </div>
 
-      {/* Recent results */}
       <div>
         <h2 className="section-title">Recent Results</h2>
         {profile.recentResults.length === 0 ? (
           <div className="empty"><p>No results recorded yet.</p></div>
         ) : (
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Event</th>
-                  <th>Result</th>
-                  <th>Result Date</th>
-                  <th>Session</th>
-                  <th>Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {profile.recentResults.map(r => (
-                  <tr key={r.id} className="table-row">
-                    <td>{r.eventName}</td>
-                    <td>
-                      <span className="result-value">
-                        {r.value} <span className="result-unit">{r.unit}</span>
-                      </span>
-                    </td>
-                    <td>{formatDate(r.resultDate)}</td>
-                    <td>{r.sessionDate ? formatDate(r.sessionDate) : <span className="text-muted">—</span>}</td>
-                    <td>{r.notes || <span className="text-muted">—</span>}</td>
+          <>
+            <div className="table-wrap desktop-only">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Event</th>
+                    <th>Result</th>
+                    <th>Result Date</th>
+                    <th>Session</th>
+                    <th>Notes</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {profile.recentResults.map(r => (
+                    <tr key={r.id} className="table-row">
+                      <td>{r.eventName}</td>
+                      <td>
+                        <span className="result-value">
+                          {r.value} <span className="result-unit">{r.unit}</span>
+                        </span>
+                      </td>
+                      <td>{formatDate(r.resultDate)}</td>
+                      <td>{r.sessionDate ? formatDate(r.sessionDate) : <span className="text-muted">—</span>}</td>
+                      <td>{r.notes || <span className="text-muted">—</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mobile-only">
+              {profile.recentResults.map(r => (
+                <ResultListCard
+                  key={r.id}
+                  eventName={r.eventName}
+                  value={r.value}
+                  unit={r.unit}
+                  resultDate={r.resultDate}
+                  sessionDate={r.sessionDate}
+                  notes={r.notes}
+                  formatDate={formatDate}
+                  readOnly
+                />
+              ))}
+            </div>
+          </>
         )}
       </div>
+
+      {editing && (
+        <AthleteFormModal
+          title="Edit Athlete"
+          initial={{
+            name: profile.name,
+            dateOfBirth: profile.dateOfBirth,
+            sex: profile.sex,
+            height: profile.height,
+            weight: profile.weight,
+            shirtSize: profile.shirtSize,
+            shortSize: profile.shortSize,
+            shoeSize: profile.shoeSize,
+            notes: profile.notes ?? '',
+          }}
+          onSave={handleSaveEdit}
+          onClose={() => setEditing(false)}
+        />
+      )}
     </div>
   );
 }

@@ -1,2 +1,1 @@
-/* Results page has no page-specific styles beyond what index.css provides.
-   The result-value and result-unit classes are defined globally in index.css. */
+/* Results page uses shared mobile-card styles from index.css */

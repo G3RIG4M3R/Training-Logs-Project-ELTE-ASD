@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.routes import export
 from app.api.routes import attendance, athletes, results, sessions
 from app.core.config import get_settings
 from app.core.errors import register_exception_handlers
@@ -28,6 +29,7 @@ def create_app(create_tables_on_startup: bool = True) -> FastAPI:
     app.include_router(sessions.router)
     app.include_router(attendance.router)
     app.include_router(results.router)
+    app.include_router(export.router)
 
     if create_tables_on_startup:
         @app.on_event("startup")

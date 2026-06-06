@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.errors import ApiError
 from app.models.result import Result
-from app.schemas.result import ResultCreate
+from app.schemas.result import ResultCreate, ResultUpdate
 from app.services.athletes import get_active_athlete
 from app.services.sessions import get_session
 
@@ -47,6 +47,23 @@ def list_athlete_results(db: Session, athlete_id: int) -> list[Result]:
         .order_by(Result.result_date.desc(), Result.id.desc())
     )
     return list(db.scalars(statement).all())
+
+
+def update_result(db: Session, result_id: int, payload: ResultUpdate) -> Result:
+    result = get_result(db, result_id)
+    result.event_name = payload.event_name
+    result.value = payload.value
+    result.unit = payload.unit
+    result.result_date = payload.result_date or result.result_date
+    result.notes = payload.notes
+    db.commit()
+    return get_result(db, result_id)
+
+
+def delete_result(db: Session, result_id: int) -> None:
+    result = get_result(db, result_id)
+    db.delete(result)
+    db.commit()
 
 
 def list_session_results(db: Session, session_id: int) -> list[Result]:

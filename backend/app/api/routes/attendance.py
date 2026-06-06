@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session
@@ -28,3 +28,10 @@ def update_attendance(
 ):
     """Update attendance status and notes."""
     return attendance_service.update_attendance(db, attendance_id, payload)
+
+
+@router.delete("/{attendance_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Clear attendance record")
+def delete_attendance(attendance_id: int, db: Session = Depends(get_db_session)) -> Response:
+    """Delete an attendance record so the athlete shows as not recorded."""
+    attendance_service.delete_attendance(db, attendance_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

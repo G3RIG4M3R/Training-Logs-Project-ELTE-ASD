@@ -1,9 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Athlete, ClothingSize, Sex } from '../types/athlete';
 import * as athleteApi from '../api/athletes';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
 import EmptyState from '../components/EmptyState';
+import AthleteFormModal from '../components/AthleteFormModal';
+import AthleteListCard from '../components/AthleteListCard';
+
+const EMPTY_ATHLETE_FORM: Omit<Athlete, 'id'> = {
+  name: '', dateOfBirth: '', sex: 'male',
+  height: 170, weight: 65,
+  shirtSize: 'M', shortSize: 'M', shoeSize: 42,
+  notes: '',
+};
 import './AthletesPage.css';
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -18,156 +28,6 @@ function calcAge(dob: string): number {
 
 function initials(name: string): string {
   return name.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2);
-}
-
-const SIZES: ClothingSize[] = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
-
-// ── Empty form ────────────────────────────────────────────────
-const EMPTY_FORM: Omit<Athlete, 'id'> = {
-  name: '', dateOfBirth: '', sex: 'male',
-  height: 170, weight: 65,
-  shirtSize: 'M', shortSize: 'M', shoeSize: 42,
-  notes: '',
-};
-
-// ── Athlete Form Modal ────────────────────────────────────────
-interface FormModalProps {
-  initial: Omit<Athlete, 'id'>;
-  title: string;
-  onSave: (data: Omit<Athlete, 'id'>) => Promise<void>;
-  onClose: () => void;
-}
-
-function AthleteFormModal({ initial, title, onSave, onClose }: FormModalProps) {
-  const [form, setForm] = useState(initial);
-  const [errors, setErrors] = useState<Partial<Record<keyof Omit<Athlete, 'id'>, string>>>({});
-  const [saving, setSaving] = useState(false);
-  const [apiError, setApiError] = useState('');
-
-  const set = <K extends keyof typeof form>(key: K, val: typeof form[K]) => {
-    setForm(f => ({ ...f, [key]: val }));
-    setErrors(e => ({ ...e, [key]: undefined }));
-  };
-
-  const validate = () => {
-    const e: typeof errors = {};
-    if (!form.name.trim())   e.name = 'Required';
-    if (!form.dateOfBirth)   e.dateOfBirth = 'Required';
-    if (form.height < 100 || form.height > 250) e.height = '100–250 cm';
-    if (form.weight < 30  || form.weight > 200) e.weight = '30–200 kg';
-    if (form.shoeSize < 30 || form.shoeSize > 55) e.shoeSize = '30–55 EU';
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
-
-  const handleSubmit = async (ev: React.FormEvent) => {
-    ev.preventDefault();
-    if (!validate()) return;
-    setSaving(true);
-    setApiError('');
-    try {
-      await onSave(form);
-    } catch (err) {
-      setApiError(err instanceof Error ? err.message : 'Failed to save athlete');
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>{title}</h2>
-          <button className="modal-close" onClick={onClose}>✕</button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="form">
-          {/* Identity */}
-          <p className="form-section-label">Identity</p>
-          <div className="form-row">
-            <div className={`form-field form-field--full ${errors.name ? 'has-error' : ''}`}>
-              <label>Full Name *</label>
-              <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Kovács Bence" />
-              {errors.name && <span className="field-error">{errors.name}</span>}
-            </div>
-          </div>
-          <div className="form-row">
-            <div className={`form-field ${errors.dateOfBirth ? 'has-error' : ''}`}>
-              <label>Date of Birth *</label>
-              <input type="date" value={form.dateOfBirth} max={new Date().toISOString().split('T')[0]} onChange={e => set('dateOfBirth', e.target.value)} />
-              {errors.dateOfBirth && <span className="field-error">{errors.dateOfBirth}</span>}
-            </div>
-            <div className="form-field">
-              <label>Sex *</label>
-              <select value={form.sex} onChange={e => set('sex', e.target.value as Sex)}>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Physical */}
-          <p className="form-section-label">Physical Stats</p>
-          <div className="form-row">
-            <div className={`form-field ${errors.height ? 'has-error' : ''}`}>
-              <label>Height (cm) *</label>
-              <input type="number" value={form.height} min={100} max={250} onChange={e => set('height', +e.target.value)} />
-              {errors.height && <span className="field-error">{errors.height}</span>}
-            </div>
-            <div className={`form-field ${errors.weight ? 'has-error' : ''}`}>
-              <label>Weight (kg) *</label>
-              <input type="number" value={form.weight} min={30} max={200} onChange={e => set('weight', +e.target.value)} />
-              {errors.weight && <span className="field-error">{errors.weight}</span>}
-            </div>
-            <div className={`form-field ${errors.shoeSize ? 'has-error' : ''}`}>
-              <label>Shoe Size (EU) *</label>
-              <input type="number" value={form.shoeSize} min={30} max={55} onChange={e => set('shoeSize', +e.target.value)} />
-              {errors.shoeSize && <span className="field-error">{errors.shoeSize}</span>}
-            </div>
-          </div>
-
-          {/* Gear */}
-          <p className="form-section-label">Gear Sizes</p>
-          <div className="form-row">
-            <div className="form-field">
-              <label>Shirt</label>
-              <div className="size-picker">
-                {SIZES.map(s => (
-                  <button key={s} type="button" className={`size-btn ${form.shirtSize === s ? 'size-btn--active' : ''}`} onClick={() => set('shirtSize', s)}>{s}</button>
-                ))}
-              </div>
-            </div>
-            <div className="form-field">
-              <label>Shorts</label>
-              <div className="size-picker">
-                {SIZES.map(s => (
-                  <button key={s} type="button" className={`size-btn ${form.shortSize === s ? 'size-btn--active' : ''}`} onClick={() => set('shortSize', s)}>{s}</button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Notes */}
-          <p className="form-section-label">Notes</p>
-          <div className="form-row">
-            <div className="form-field form-field--full">
-              <textarea value={form.notes ?? ''} onChange={e => set('notes', e.target.value)} rows={2} placeholder="Any relevant notes…" />
-            </div>
-          </div>
-
-          {apiError && <p className="field-error">{apiError}</p>}
-
-          <div className="form-actions">
-            <button type="button" className="btn btn--secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn--primary" disabled={saving}>
-              {saving ? 'Saving…' : 'Save Athlete'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
 }
 
 // ── Delete Confirm Modal ──────────────────────────────────────
@@ -233,11 +93,8 @@ function exportToCsv(list: Athlete[]) {
 }
 
 // ── Main Page ─────────────────────────────────────────────────
-interface AthletesPageProps {
-  onViewProfile: (athlete: Athlete) => void;
-}
-
-export default function AthletesPage({ onViewProfile }: AthletesPageProps) {
+export default function AthletesPage() {
+  const navigate = useNavigate();
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -379,55 +236,71 @@ export default function AthletesPage({ onViewProfile }: AthletesPageProps) {
               action={{ label: 'Clear filters', onClick: () => { setSearch(''); setSexFilter('all'); } }}
             />
           ) : (
-            <div className="table-wrap">
-              <table className="table athletes-table">
-                <thead>
-                  <tr>
-                    <th onClick={() => handleSort('name')}      className="th-sortable">Name      <SortIcon col="name" /></th>
-                    <th onClick={() => handleSort('sex')}       className="th-sortable">Gender    <SortIcon col="sex" /></th>
-                    <th onClick={() => handleSort('age')}       className="th-sortable">Age       <SortIcon col="age" /></th>
-                    <th onClick={() => handleSort('height')}    className="th-sortable">Height    <SortIcon col="height" /></th>
-                    <th onClick={() => handleSort('weight')}    className="th-sortable">Weight    <SortIcon col="weight" /></th>
-                    <th onClick={() => handleSort('shirtSize')} className="th-sortable">Shirt     <SortIcon col="shirtSize" /></th>
-                    <th onClick={() => handleSort('shortSize')} className="th-sortable">Shorts    <SortIcon col="shortSize" /></th>
-                    <th onClick={() => handleSort('shoeSize')}  className="th-sortable">Shoe      <SortIcon col="shoeSize" /></th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map(a => (
-                    <tr key={a.id} className="table-row">
-                      <td>
-                        <div className="athlete-name-cell">
-                          <div className={`avatar avatar--${a.sex}`}>{initials(a.name)}</div>
-                          <span className="athlete-name-link" onClick={() => onViewProfile(a)}>{a.name}</span>
-                        </div>
-                      </td>
-                      <td className="capitalize">{a.sex}</td>
-                      <td>{calcAge(a.dateOfBirth)}</td>
-                      <td>{a.height} cm</td>
-                      <td>{a.weight} kg</td>
-                      <td><span className="size-tag">{a.shirtSize}</span></td>
-                      <td><span className="size-tag">{a.shortSize}</span></td>
-                      <td>{a.shoeSize}</td>
-                      <td>
-                        <div className="row-actions">
-                          <button className="action-btn action-btn--edit" onClick={() => setModal({ type: 'edit', athlete: a })}>Edit</button>
-                          <button className="action-btn action-btn--delete" onClick={() => setModal({ type: 'delete', athlete: a, error: '' })}>Delete</button>
-                        </div>
-                      </td>
+            <>
+              <div className="table-wrap desktop-only">
+                <table className="table athletes-table">
+                  <thead>
+                    <tr>
+                      <th onClick={() => handleSort('name')}      className="th-sortable">Name      <SortIcon col="name" /></th>
+                      <th onClick={() => handleSort('sex')}       className="th-sortable">Gender    <SortIcon col="sex" /></th>
+                      <th onClick={() => handleSort('age')}       className="th-sortable">Age       <SortIcon col="age" /></th>
+                      <th onClick={() => handleSort('height')}    className="th-sortable">Height    <SortIcon col="height" /></th>
+                      <th onClick={() => handleSort('weight')}    className="th-sortable">Weight    <SortIcon col="weight" /></th>
+                      <th onClick={() => handleSort('shirtSize')} className="th-sortable">Shirt     <SortIcon col="shirtSize" /></th>
+                      <th onClick={() => handleSort('shortSize')} className="th-sortable">Shorts    <SortIcon col="shortSize" /></th>
+                      <th onClick={() => handleSort('shoeSize')}  className="th-sortable">Shoe      <SortIcon col="shoeSize" /></th>
+                      <th>Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {filtered.map(a => (
+                      <tr key={a.id} className="table-row">
+                        <td>
+                          <div className="athlete-name-cell">
+                            <div className={`avatar avatar--${a.sex}`}>{initials(a.name)}</div>
+                            <span className="athlete-name-link" onClick={() => navigate(`/athletes/${a.id}`)}>{a.name}</span>
+                          </div>
+                        </td>
+                        <td className="capitalize">{a.sex}</td>
+                        <td>{calcAge(a.dateOfBirth)}</td>
+                        <td>{a.height} cm</td>
+                        <td>{a.weight} kg</td>
+                        <td><span className="size-tag">{a.shirtSize}</span></td>
+                        <td><span className="size-tag">{a.shortSize}</span></td>
+                        <td>{a.shoeSize}</td>
+                        <td>
+                          <div className="row-actions">
+                            <button className="action-btn action-btn--edit" onClick={() => setModal({ type: 'edit', athlete: a })}>Edit</button>
+                            <button className="action-btn action-btn--delete" onClick={() => setModal({ type: 'delete', athlete: a, error: '' })}>Delete</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mobile-only">
+                {filtered.map(a => (
+                  <AthleteListCard
+                    key={a.id}
+                    athlete={a}
+                    age={calcAge(a.dateOfBirth)}
+                    initials={initials(a.name)}
+                    onOpenProfile={() => navigate(`/athletes/${a.id}`)}
+                    onEdit={() => setModal({ type: 'edit', athlete: a })}
+                    onDelete={() => setModal({ type: 'delete', athlete: a, error: '' })}
+                  />
+                ))}
+              </div>
+            </>
           )}
         </>
       )}
 
       {/* Modals */}
       {modal.type === 'add' && (
-        <AthleteFormModal title="Add New Athlete" initial={EMPTY_FORM} onSave={handleAdd} onClose={() => setModal({ type: 'none' })} />
+        <AthleteFormModal title="Add New Athlete" initial={EMPTY_ATHLETE_FORM} onSave={handleAdd} onClose={() => setModal({ type: 'none' })} />
       )}
       {modal.type === 'edit' && (
         <AthleteFormModal

@@ -1,14 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Athlete } from '../types/athlete';
 import type { TrainingSession } from '../types/session';
-import type { Result, ResultCreate } from '../types/result';
+import type { Result, ResultCreate, ResultUpdate } from '../types/result';
 import * as athleteApi from '../api/athletes';
 import * as sessionApi from '../api/sessions';
 import * as resultsApi from '../api/results';
+import { useSessionSelection } from '../hooks/useSessionQueryParam';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
 import ErrorMessage from '../components/ErrorMessage';
 import NewSessionModal from '../components/NewSessionModal';
+import ResultListCard from '../components/ResultListCard';
 import './ResultsPage.css';
 
 function formatDate(dateStr: string): string {
@@ -17,21 +19,49 @@ function formatDate(dateStr: string): string {
   });
 }
 
-// ── Add Result Modal ──────────────────────────────────────────
-interface AddResultModalProps {
-  athletes: Athlete[];
-  sessionId: number;
-  onSave: (data: ResultCreate) => Promise<void>;
+// ── Confirm modal ─────────────────────────────────────────────
+interface ConfirmModalProps {
+  message: string;
+  confirmLabel?: string;
+  onConfirm: () => void;
   onClose: () => void;
 }
 
-function AddResultModal({ athletes, sessionId, onSave, onClose }: AddResultModalProps) {
-  const [athleteId, setAthleteId] = useState<number>(athletes[0]?.id ?? 0);
-  const [eventName, setEventName] = useState('');
-  const [value, setValue] = useState('');
-  const [unit, setUnit] = useState('');
-  const [resultDate, setResultDate] = useState('');
-  const [notes, setNotes] = useState('');
+function ConfirmModal({ message, confirmLabel = 'Confirm', onConfirm, onClose }: ConfirmModalProps) {
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal modal--sm" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Confirm</h2>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <p style={{ padding: '0 0 1rem' }}>{message}</p>
+        <div className="form-actions">
+          <button className="btn btn--secondary" onClick={onClose}>Cancel</button>
+          <button className="btn btn--danger" onClick={onConfirm}>{confirmLabel}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Result form modal (add + edit) ────────────────────────────
+interface ResultFormModalProps {
+  athletes: Athlete[];
+  sessionId: number;
+  initial?: Result;
+  onSave: (data: ResultCreate | (ResultUpdate & { id: number })) => Promise<void>;
+  onClose: () => void;
+}
+
+function ResultFormModal({ athletes, sessionId, initial, onSave, onClose }: ResultFormModalProps) {
+  const isEdit = !!initial;
+  const [athleteId, setAthleteId] = useState<number>(initial?.athleteId ?? athletes[0]?.id ?? 0);
+  const [eventName, setEventName] = useState(initial?.eventName ?? '');
+  const [value, setValue] = useState(initial ? String(initial.value) : '');
+  const [unit, setUnit] = useState(initial?.unit ?? '');
+  const [resultDate, setResultDate] = useState(initial?.resultDate ?? '');
+  const [notes, setNotes] = useState(initial?.notes ?? '');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [apiError, setApiError] = useState('');
@@ -52,15 +82,26 @@ function AddResultModal({ athletes, sessionId, onSave, onClose }: AddResultModal
     setSaving(true);
     setApiError('');
     try {
-      await onSave({
-        athleteId,
-        sessionId,
-        eventName: eventName.trim(),
-        value: Number(value),
-        unit: unit.trim(),
-        resultDate: resultDate || undefined,
-        notes: notes.trim() || undefined,
-      });
+      if (isEdit && initial) {
+        await onSave({
+          id: initial.id,
+          eventName: eventName.trim(),
+          value: Number(value),
+          unit: unit.trim(),
+          resultDate: resultDate || undefined,
+          notes: notes.trim() || undefined,
+        });
+      } else {
+        await onSave({
+          athleteId,
+          sessionId,
+          eventName: eventName.trim(),
+          value: Number(value),
+          unit: unit.trim(),
+          resultDate: resultDate || undefined,
+          notes: notes.trim() || undefined,
+        });
+      }
     } catch (err) {
       setApiError(err instanceof Error ? err.message : 'Failed to save result');
       setSaving(false);
@@ -71,7 +112,7 @@ function AddResultModal({ athletes, sessionId, onSave, onClose }: AddResultModal
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>Add Result</h2>
+          <h2>{isEdit ? 'Edit Result' : 'Add Result'}</h2>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
         <form onSubmit={handleSubmit} className="form">
@@ -79,7 +120,7 @@ function AddResultModal({ athletes, sessionId, onSave, onClose }: AddResultModal
           <div className="form-row">
             <div className={`form-field ${errors.athleteId ? 'has-error' : ''}`}>
               <label>Athlete *</label>
-              <select value={athleteId} onChange={e => setAthleteId(Number(e.target.value))}>
+              <select value={athleteId} onChange={e => setAthleteId(Number(e.target.value))} disabled={isEdit}>
                 {athletes.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
               {errors.athleteId && <span className="field-error">{errors.athleteId}</span>}
@@ -122,11 +163,7 @@ function AddResultModal({ athletes, sessionId, onSave, onClose }: AddResultModal
             </div>
             <div className="form-field">
               <label>Date (optional)</label>
-              <input
-                type="date"
-                value={resultDate}
-                onChange={e => setResultDate(e.target.value)}
-              />
+              <input type="date" value={resultDate} onChange={e => setResultDate(e.target.value)} />
             </div>
           </div>
 
@@ -141,7 +178,7 @@ function AddResultModal({ athletes, sessionId, onSave, onClose }: AddResultModal
           <div className="form-actions">
             <button type="button" className="btn btn--secondary" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn--primary" disabled={saving}>
-              {saving ? 'Saving…' : 'Save Result'}
+              {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Save Result'}
             </button>
           </div>
         </form>
@@ -153,7 +190,7 @@ function AddResultModal({ athletes, sessionId, onSave, onClose }: AddResultModal
 // ── Main Page ─────────────────────────────────────────────────
 export default function ResultsPage() {
   const [sessions, setSessions] = useState<TrainingSession[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const { selectedId, selectSession } = useSessionSelection(sessions);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [results, setResults] = useState<Result[]>([]);
 
@@ -161,8 +198,15 @@ export default function ResultsPage() {
   const [resultsLoading, setResultsLoading] = useState(false);
   const [sessionsError, setSessionsError] = useState('');
   const [resultsError, setResultsError] = useState('');
+  const [sessionActionError, setSessionActionError] = useState('');
+
   const [showNewSession, setShowNewSession] = useState(false);
+  const [editingSession, setEditingSession] = useState<TrainingSession | null>(null);
+  const [deletingSessionId, setDeletingSessionId] = useState<number | null>(null);
+
   const [showAddResult, setShowAddResult] = useState(false);
+  const [editingResult, setEditingResult] = useState<Result | null>(null);
+  const [deletingResultId, setDeletingResultId] = useState<number | null>(null);
 
   const loadSessions = useCallback(async () => {
     setSessionsLoading(true);
@@ -170,9 +214,6 @@ export default function ResultsPage() {
     try {
       const data = await sessionApi.listSessions();
       setSessions(data);
-      if (data.length > 0) {
-        setSelectedId(prev => prev ?? data[0].id);
-      }
     } catch (err) {
       setSessionsError(err instanceof Error ? err.message : 'Failed to load sessions');
     } finally {
@@ -202,17 +243,65 @@ export default function ResultsPage() {
     if (selectedId !== null) loadResults(selectedId);
   }, [selectedId, loadResults]);
 
-  const handleCreateSession = async (date: string, title: string) => {
-    const session = await sessionApi.createSession({ date, title: title.trim() || undefined });
+  // ── Session CRUD ──────────────────────────────────────────────
+  const handleCreateSession = async (date: string, title: string, notes: string) => {
+    const session = await sessionApi.createSession({
+      date,
+      title: title.trim() || undefined,
+      notes: notes.trim() || undefined,
+    });
     setSessions(prev => [session, ...prev]);
-    setSelectedId(session.id);
+    selectSession(session.id);
     setShowNewSession(false);
   };
 
-  const handleAddResult = async (data: ResultCreate) => {
-    await resultsApi.createResult(data);
+  const handleUpdateSession = async (date: string, title: string, notes: string) => {
+    if (!editingSession) return;
+    setSessionActionError('');
+    const updated = await sessionApi.updateSession(editingSession.id, {
+      date,
+      title: title.trim() || undefined,
+      notes: notes.trim() || undefined,
+    });
+    setSessions(prev => prev.map(s => s.id === updated.id ? updated : s));
+    setEditingSession(null);
+  };
+
+  const handleDeleteSession = async () => {
+    if (deletingSessionId === null) return;
+    setSessionActionError('');
+    try {
+      await sessionApi.deleteSession(deletingSessionId);
+      const remaining = sessions.filter(s => s.id !== deletingSessionId);
+      setSessions(remaining);
+      setDeletingSessionId(null);
+      if (selectedId === deletingSessionId) {
+        setResults([]);
+      }
+    } catch (err) {
+      setDeletingSessionId(null);
+      setSessionActionError(err instanceof Error ? err.message : 'Failed to delete session');
+    }
+  };
+
+  // ── Result CRUD ───────────────────────────────────────────────
+  const handleSaveResult = async (data: ResultCreate | (ResultUpdate & { id: number })) => {
+    if ('id' in data) {
+      const { id, ...update } = data;
+      await resultsApi.updateResult(id, update);
+    } else {
+      await resultsApi.createResult(data);
+    }
     if (selectedId !== null) await loadResults(selectedId);
     setShowAddResult(false);
+    setEditingResult(null);
+  };
+
+  const handleDeleteResult = async () => {
+    if (deletingResultId === null) return;
+    await resultsApi.deleteResult(deletingResultId);
+    setResults(prev => prev.filter(r => r.id !== deletingResultId));
+    setDeletingResultId(null);
   };
 
   const exportCsv = () => {
@@ -232,6 +321,8 @@ export default function ResultsPage() {
     link.click();
     URL.revokeObjectURL(url);
   };
+
+  const selectedSession = sessions.find(s => s.id === selectedId);
 
   return (
     <div className="page">
@@ -263,14 +354,14 @@ export default function ResultsPage() {
         />
       ) : (
         <>
-          {/* Session selector */}
+          {/* Session selector bar */}
           <div className="session-bar">
             <div className="session-selector">
               <label className="session-label">Session</label>
               <select
                 className="filter-select session-select"
                 value={selectedId ?? ''}
-                onChange={e => setSelectedId(Number(e.target.value))}
+                onChange={e => selectSession(Number(e.target.value))}
               >
                 {sessions.map(s => (
                   <option key={s.id} value={s.id}>
@@ -278,6 +369,20 @@ export default function ResultsPage() {
                   </option>
                 ))}
               </select>
+              {selectedSession && (
+                <>
+                  <button
+                    className="btn btn--icon"
+                    title="Edit session"
+                    onClick={() => { setSessionActionError(''); setEditingSession(selectedSession); }}
+                  >✏️</button>
+                  <button
+                    className="btn btn--icon btn--icon-danger"
+                    title="Delete session"
+                    onClick={() => { setSessionActionError(''); setDeletingSessionId(selectedSession.id); }}
+                  >🗑️</button>
+                </>
+              )}
             </div>
             {selectedId !== null && !resultsLoading && (
               <span className="filter-count">
@@ -285,6 +390,10 @@ export default function ResultsPage() {
               </span>
             )}
           </div>
+
+          {sessionActionError && (
+            <ErrorMessage message={sessionActionError} onRetry={() => setSessionActionError('')} />
+          )}
 
           {resultsLoading ? (
             <LoadingSpinner />
@@ -301,50 +410,107 @@ export default function ResultsPage() {
                 : undefined}
             />
           ) : (
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Athlete</th>
-                    <th>Event</th>
-                    <th>Result</th>
-                    <th>Date</th>
-                    <th>Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {results.map(r => (
-                    <tr key={r.id} className="table-row">
-                      <td>{r.athleteName}</td>
-                      <td>{r.eventName}</td>
-                      <td>
-                        <span className="result-value">
-                          {r.value} <span className="result-unit">{r.unit}</span>
-                        </span>
-                      </td>
-                      <td>{formatDate(r.resultDate)}</td>
-                      <td>{r.notes || <span className="text-muted">—</span>}</td>
+            <>
+              <div className="table-wrap desktop-only">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Athlete</th>
+                      <th>Event</th>
+                      <th>Result</th>
+                      <th>Date</th>
+                      <th>Notes</th>
+                      <th className="th-actions">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {results.map(r => (
+                      <tr key={r.id} className="table-row">
+                        <td>{r.athleteName}</td>
+                        <td>{r.eventName}</td>
+                        <td>
+                          <span className="result-value">
+                            {r.value} <span className="result-unit">{r.unit}</span>
+                          </span>
+                        </td>
+                        <td>{formatDate(r.resultDate)}</td>
+                        <td>{r.notes || <span className="text-muted">—</span>}</td>
+                        <td className="td-actions">
+                          <button
+                            className="btn btn--icon"
+                            title="Edit result"
+                            onClick={() => setEditingResult(r)}
+                          >✏️</button>
+                          <button
+                            className="btn btn--icon btn--icon-danger"
+                            title="Delete result"
+                            onClick={() => setDeletingResultId(r.id)}
+                          >🗑️</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mobile-only">
+                {results.map(r => (
+                  <ResultListCard
+                    key={r.id}
+                    athleteName={r.athleteName}
+                    eventName={r.eventName}
+                    value={r.value}
+                    unit={r.unit}
+                    resultDate={r.resultDate}
+                    notes={r.notes}
+                    formatDate={formatDate}
+                    onEdit={() => setEditingResult(r)}
+                    onDelete={() => setDeletingResultId(r.id)}
+                  />
+                ))}
+              </div>
+            </>
           )}
         </>
       )}
 
+      {/* Modals */}
       {showNewSession && (
         <NewSessionModal
           onSave={handleCreateSession}
           onClose={() => setShowNewSession(false)}
         />
       )}
-      {showAddResult && selectedId !== null && (
-        <AddResultModal
+      {editingSession && (
+        <NewSessionModal
+          initial={editingSession}
+          onSave={handleUpdateSession}
+          onClose={() => setEditingSession(null)}
+        />
+      )}
+      {deletingSessionId !== null && (
+        <ConfirmModal
+          message={`Delete session "${selectedSession?.title || formatDate(selectedSession?.date ?? '')}"? This is only possible if it has no attendance or results.`}
+          confirmLabel="Delete Session"
+          onConfirm={handleDeleteSession}
+          onClose={() => setDeletingSessionId(null)}
+        />
+      )}
+      {(showAddResult || editingResult) && selectedId !== null && (
+        <ResultFormModal
           athletes={athletes}
           sessionId={selectedId}
-          onSave={handleAddResult}
-          onClose={() => setShowAddResult(false)}
+          initial={editingResult ?? undefined}
+          onSave={handleSaveResult}
+          onClose={() => { setShowAddResult(false); setEditingResult(null); }}
+        />
+      )}
+      {deletingResultId !== null && (
+        <ConfirmModal
+          message="Delete this result? This action cannot be undone."
+          confirmLabel="Delete Result"
+          onConfirm={handleDeleteResult}
+          onClose={() => setDeletingResultId(null)}
         />
       )}
     </div>

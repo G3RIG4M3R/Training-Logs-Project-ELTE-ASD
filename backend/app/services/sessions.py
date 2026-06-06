@@ -24,3 +24,25 @@ def create_session(db: Session, payload: TrainingSessionCreate) -> TrainingSessi
     db.commit()
     db.refresh(session)
     return session
+
+
+def update_session(db: Session, session_id: int, payload: TrainingSessionCreate) -> TrainingSession:
+    session = get_session(db, session_id)
+    session.date = payload.date
+    session.title = payload.title
+    session.notes = payload.notes
+    db.commit()
+    db.refresh(session)
+    return session
+
+
+def delete_session(db: Session, session_id: int) -> None:
+    session = get_session(db, session_id)
+    if session.attendance_records or session.results:
+        raise ApiError(
+            409,
+            "session_has_records",
+            "Cannot delete a session that has attendance or results",
+        )
+    db.delete(session)
+    db.commit()

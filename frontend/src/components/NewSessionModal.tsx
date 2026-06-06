@@ -1,13 +1,18 @@
 import { useState } from 'react';
+import type { TrainingSession } from '../types/session';
 
 interface NewSessionModalProps {
-  onSave: (date: string, title: string) => Promise<void>;
+  /** When provided the modal opens in edit mode pre-populated with these values. */
+  initial?: TrainingSession;
+  onSave: (date: string, title: string, notes: string) => Promise<void>;
   onClose: () => void;
 }
 
-export default function NewSessionModal({ onSave, onClose }: NewSessionModalProps) {
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [title, setTitle] = useState('');
+export default function NewSessionModal({ initial, onSave, onClose }: NewSessionModalProps) {
+  const isEdit = !!initial;
+  const [date, setDate] = useState(initial?.date ?? new Date().toISOString().split('T')[0]);
+  const [title, setTitle] = useState(initial?.title ?? '');
+  const [notes, setNotes] = useState(initial?.notes ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -17,9 +22,9 @@ export default function NewSessionModal({ onSave, onClose }: NewSessionModalProp
     setSaving(true);
     setError('');
     try {
-      await onSave(date, title);
+      await onSave(date, title, notes);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create session');
+      setError(err instanceof Error ? err.message : 'Failed to save session');
       setSaving(false);
     }
   };
@@ -28,7 +33,7 @@ export default function NewSessionModal({ onSave, onClose }: NewSessionModalProp
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal modal--sm" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>New Training Session</h2>
+          <h2>{isEdit ? 'Edit Session' : 'New Training Session'}</h2>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
         <form onSubmit={handleSubmit} className="form">
@@ -37,7 +42,6 @@ export default function NewSessionModal({ onSave, onClose }: NewSessionModalProp
             <input
               type="date"
               value={date}
-              max={new Date().toISOString().split('T')[0]}
               onChange={e => setDate(e.target.value)}
               required
             />
@@ -52,13 +56,23 @@ export default function NewSessionModal({ onSave, onClose }: NewSessionModalProp
               onChange={e => setTitle(e.target.value)}
             />
           </div>
+          <div className="form-field">
+            <label>Notes (optional)</label>
+            <textarea
+              value={notes}
+              rows={2}
+              maxLength={1000}
+              placeholder="Any session notes…"
+              onChange={e => setNotes(e.target.value)}
+            />
+          </div>
           {error && <p className="field-error">{error}</p>}
           <div className="form-actions">
             <button type="button" className="btn btn--secondary" onClick={onClose}>
               Cancel
             </button>
             <button type="submit" className="btn btn--primary" disabled={saving}>
-              {saving ? 'Creating…' : 'Create Session'}
+              {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Session'}
             </button>
           </div>
         </form>

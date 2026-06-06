@@ -20,8 +20,10 @@
 .filter-search:focus { border-color: var(--accent); }
 .filter-search::placeholder { color: var(--text-3); }
 
-/* ── Athlete table ── */
-.athletes-table { min-width: 800px; }
+/* ── Athlete table (desktop) ── */
+@media (min-width: 641px) {
+  .athletes-table { min-width: 800px; }
+}
 
 .athlete-name-cell {
   display: flex;
@@ -63,3 +65,21 @@
 }
 .size-btn:hover { border-color: var(--accent); color: var(--accent); }
 .size-btn--active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+@media (max-width: 640px) {
+  .filter-search { min-width: 0; width: 100%; }
+  .filters .filter-select { width: 100%; }
+}
+
+.mobile-card .athlete-name-link {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}

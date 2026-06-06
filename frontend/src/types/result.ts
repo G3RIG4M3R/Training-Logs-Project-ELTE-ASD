@@ -20,3 +20,11 @@ export interface ResultCreate {
   resultDate?: string;
   notes?: string;
 }
+
+export interface ResultUpdate {
+  eventName: string;
+  value: number;
+  unit: string;
+  resultDate?: string;
+  notes?: string;
+}

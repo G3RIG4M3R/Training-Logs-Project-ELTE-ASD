@@ -31,6 +31,29 @@ class ResultCreate(APIModel):
         return stripped or None
 
 
+class ResultUpdate(APIModel):
+    event_name: str = Field(min_length=1, max_length=120)
+    value: float = Field(ge=0)
+    unit: str = Field(min_length=1, max_length=24)
+    result_date: date | None = None
+    notes: str | None = Field(default=None, max_length=1000)
+
+    @field_validator("event_name", "unit")
+    @classmethod
+    def normalize_required_text(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Value is required")
+        return stripped
+
+    @field_validator("notes")
+    @classmethod
+    def normalize_notes(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None
+
+
 class ResultRead(APIModel):
     id: int
     athlete_id: int
