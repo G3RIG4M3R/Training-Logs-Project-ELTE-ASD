@@ -10,6 +10,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
 import ErrorMessage from '../components/ErrorMessage';
 import NewSessionModal from '../components/NewSessionModal';
+import AttendanceCard from '../components/AttendanceCard';
 import './AttendancePage.css';
 
 function formatDate(dateStr: string): string {
@@ -358,73 +359,94 @@ export default function AttendancePage() {
           ) : athletes.length === 0 ? (
             <EmptyState message="No athletes found. Add athletes in the Athletes tab first." />
           ) : (
-            <div className="table-wrap">
-              <table className="table attendance-table">
-                <thead>
-                  <tr>
-                    <th>Athlete</th>
-                    <th>Status</th>
-                    <th className="th-notes">Notes</th>
-                    <th className="th-actions">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {athletes.map(athlete => {
-                    const rec = attendance.find(r => r.athleteId === athlete.id);
-                    const saving = savingIds.has(athlete.id);
-                    return (
-                      <tr key={athlete.id} className="table-row">
-                        <td>
-                          <div className="athlete-attendance-cell">
-                            <div className={`avatar avatar--${athlete.sex}`}>
-                              {initials(athlete.name)}
+            <>
+              <div className="table-wrap desktop-only">
+                <table className="table attendance-table">
+                  <thead>
+                    <tr>
+                      <th>Athlete</th>
+                      <th>Status</th>
+                      <th className="th-notes">Notes</th>
+                      <th className="th-actions">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {athletes.map(athlete => {
+                      const rec = attendance.find(r => r.athleteId === athlete.id);
+                      const saving = savingIds.has(athlete.id);
+                      return (
+                        <tr key={athlete.id} className="table-row">
+                          <td>
+                            <div className="athlete-attendance-cell">
+                              <div className={`avatar avatar--${athlete.sex}`}>
+                                {initials(athlete.name)}
+                              </div>
+                              <span className="athlete-attendance-name">{athlete.name}</span>
                             </div>
-                            <span className="athlete-attendance-name">{athlete.name}</span>
-                          </div>
-                        </td>
-                        <td>
-                          <div className={`status-toggles${saving ? ' status-toggles--saving' : ''}`}>
-                            {(['present', 'absent', 'excused'] as AttendanceStatus[]).map(s => (
-                              <button
-                                key={s}
-                                className={`status-btn status-btn--${s}${rec?.status === s ? ' status-btn--active' : ''}`}
-                                onClick={() => handleToggleStatus(athlete, s)}
-                                disabled={saving}
-                                title={s.charAt(0).toUpperCase() + s.slice(1)}
-                              >
-                                {s.charAt(0).toUpperCase() + s.slice(1)}
-                              </button>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="td-notes">
-                          {rec?.notes
-                            ? <span className="notes-text" title={rec.notes}>{rec.notes}</span>
-                            : <span className="text-muted">—</span>
-                          }
-                        </td>
-                        <td className="td-actions">
-                          {rec && (
-                            <>
-                              <button
-                                className="btn btn--icon"
-                                title="Edit notes"
-                                onClick={() => setEditingNotesRecord(rec)}
-                              >✏️</button>
-                              <button
-                                className="btn btn--icon btn--icon-danger"
-                                title="Clear attendance"
-                                onClick={() => setClearingRecord(rec)}
-                              >✕</button>
-                            </>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                          </td>
+                          <td>
+                            <div className={`status-toggles${saving ? ' status-toggles--saving' : ''}`}>
+                              {(['present', 'absent', 'excused'] as AttendanceStatus[]).map(s => (
+                                <button
+                                  key={s}
+                                  className={`status-btn status-btn--${s}${rec?.status === s ? ' status-btn--active' : ''}`}
+                                  onClick={() => handleToggleStatus(athlete, s)}
+                                  disabled={saving}
+                                  title={s.charAt(0).toUpperCase() + s.slice(1)}
+                                >
+                                  {s.charAt(0).toUpperCase() + s.slice(1)}
+                                </button>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="td-notes">
+                            {rec?.notes
+                              ? <span className="notes-text" title={rec.notes}>{rec.notes}</span>
+                              : <span className="text-muted">—</span>
+                            }
+                          </td>
+                          <td className="td-actions">
+                            {rec && (
+                              <>
+                                <button
+                                  className="btn btn--icon"
+                                  title="Edit notes"
+                                  onClick={() => setEditingNotesRecord(rec)}
+                                >✏️</button>
+                                <button
+                                  className="btn btn--icon btn--icon-danger"
+                                  title="Clear attendance"
+                                  onClick={() => setClearingRecord(rec)}
+                                >✕</button>
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mobile-only">
+                {athletes.map(athlete => {
+                  const rec = attendance.find(r => r.athleteId === athlete.id);
+                  const saving = savingIds.has(athlete.id);
+                  return (
+                    <AttendanceCard
+                      key={athlete.id}
+                      athlete={athlete}
+                      record={rec}
+                      saving={saving}
+                      initials={initials(athlete.name)}
+                      onToggleStatus={status => handleToggleStatus(athlete, status)}
+                      onEditNotes={() => rec && setEditingNotesRecord(rec)}
+                      onClear={() => rec && setClearingRecord(rec)}
+                    />
+                  );
+                })}
+              </div>
+            </>
           )}
         </>
       )}

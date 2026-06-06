@@ -5,6 +5,7 @@ import type { Athlete, AthleteProfile } from '../types/athlete';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
 import AthleteFormModal from '../components/AthleteFormModal';
+import ResultListCard from '../components/ResultListCard';
 import './ProfilePage.css';
 
 function calcAge(dob: string): number {
@@ -203,34 +204,52 @@ export default function ProfilePage() {
         {profile.recentResults.length === 0 ? (
           <div className="empty"><p>No results recorded yet.</p></div>
         ) : (
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Event</th>
-                  <th>Result</th>
-                  <th>Result Date</th>
-                  <th>Session</th>
-                  <th>Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {profile.recentResults.map(r => (
-                  <tr key={r.id} className="table-row">
-                    <td>{r.eventName}</td>
-                    <td>
-                      <span className="result-value">
-                        {r.value} <span className="result-unit">{r.unit}</span>
-                      </span>
-                    </td>
-                    <td>{formatDate(r.resultDate)}</td>
-                    <td>{r.sessionDate ? formatDate(r.sessionDate) : <span className="text-muted">—</span>}</td>
-                    <td>{r.notes || <span className="text-muted">—</span>}</td>
+          <>
+            <div className="table-wrap desktop-only">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Event</th>
+                    <th>Result</th>
+                    <th>Result Date</th>
+                    <th>Session</th>
+                    <th>Notes</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {profile.recentResults.map(r => (
+                    <tr key={r.id} className="table-row">
+                      <td>{r.eventName}</td>
+                      <td>
+                        <span className="result-value">
+                          {r.value} <span className="result-unit">{r.unit}</span>
+                        </span>
+                      </td>
+                      <td>{formatDate(r.resultDate)}</td>
+                      <td>{r.sessionDate ? formatDate(r.sessionDate) : <span className="text-muted">—</span>}</td>
+                      <td>{r.notes || <span className="text-muted">—</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mobile-only">
+              {profile.recentResults.map(r => (
+                <ResultListCard
+                  key={r.id}
+                  eventName={r.eventName}
+                  value={r.value}
+                  unit={r.unit}
+                  resultDate={r.resultDate}
+                  sessionDate={r.sessionDate}
+                  notes={r.notes}
+                  formatDate={formatDate}
+                  readOnly
+                />
+              ))}
+            </div>
+          </>
         )}
       </div>
 

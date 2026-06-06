@@ -20,8 +20,10 @@
 .stat-pill--absent  { background: var(--danger-light); color: var(--danger); border-color: #fca5a5; }
 .stat-pill--excused { background: #fef9c3; color: #854d0e; border-color: #fde047; }
 
-/* ── Attendance table ── */
-.attendance-table { min-width: 500px; }
+/* ── Attendance table (desktop) ── */
+@media (min-width: 641px) {
+  .attendance-table { min-width: 500px; }
+}
 
 .athlete-attendance-cell {
   display: flex;
@@ -80,8 +82,24 @@
 .th-notes { min-width: 120px; }
 .td-notes { color: var(--text-2); font-size: 0.85rem; }
 
-/* ── Responsive ── */
 @media (max-width: 640px) {
-  .status-btn { padding: 5px 8px; font-size: 0.72rem; }
   .attendance-stats { gap: 6px; }
+}
+
+.mobile-card .athlete-attendance-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-card .mobile-card-notes {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85rem;
+  color: var(--text-2);
 }

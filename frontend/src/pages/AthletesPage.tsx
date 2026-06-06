@@ -6,6 +6,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
 import EmptyState from '../components/EmptyState';
 import AthleteFormModal from '../components/AthleteFormModal';
+import AthleteListCard from '../components/AthleteListCard';
 
 const EMPTY_ATHLETE_FORM: Omit<Athlete, 'id'> = {
   name: '', dateOfBirth: '', sex: 'male',
@@ -235,48 +236,64 @@ export default function AthletesPage() {
               action={{ label: 'Clear filters', onClick: () => { setSearch(''); setSexFilter('all'); } }}
             />
           ) : (
-            <div className="table-wrap">
-              <table className="table athletes-table">
-                <thead>
-                  <tr>
-                    <th onClick={() => handleSort('name')}      className="th-sortable">Name      <SortIcon col="name" /></th>
-                    <th onClick={() => handleSort('sex')}       className="th-sortable">Gender    <SortIcon col="sex" /></th>
-                    <th onClick={() => handleSort('age')}       className="th-sortable">Age       <SortIcon col="age" /></th>
-                    <th onClick={() => handleSort('height')}    className="th-sortable">Height    <SortIcon col="height" /></th>
-                    <th onClick={() => handleSort('weight')}    className="th-sortable">Weight    <SortIcon col="weight" /></th>
-                    <th onClick={() => handleSort('shirtSize')} className="th-sortable">Shirt     <SortIcon col="shirtSize" /></th>
-                    <th onClick={() => handleSort('shortSize')} className="th-sortable">Shorts    <SortIcon col="shortSize" /></th>
-                    <th onClick={() => handleSort('shoeSize')}  className="th-sortable">Shoe      <SortIcon col="shoeSize" /></th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map(a => (
-                    <tr key={a.id} className="table-row">
-                      <td>
-                        <div className="athlete-name-cell">
-                          <div className={`avatar avatar--${a.sex}`}>{initials(a.name)}</div>
-                          <span className="athlete-name-link" onClick={() => navigate(`/athletes/${a.id}`)}>{a.name}</span>
-                        </div>
-                      </td>
-                      <td className="capitalize">{a.sex}</td>
-                      <td>{calcAge(a.dateOfBirth)}</td>
-                      <td>{a.height} cm</td>
-                      <td>{a.weight} kg</td>
-                      <td><span className="size-tag">{a.shirtSize}</span></td>
-                      <td><span className="size-tag">{a.shortSize}</span></td>
-                      <td>{a.shoeSize}</td>
-                      <td>
-                        <div className="row-actions">
-                          <button className="action-btn action-btn--edit" onClick={() => setModal({ type: 'edit', athlete: a })}>Edit</button>
-                          <button className="action-btn action-btn--delete" onClick={() => setModal({ type: 'delete', athlete: a, error: '' })}>Delete</button>
-                        </div>
-                      </td>
+            <>
+              <div className="table-wrap desktop-only">
+                <table className="table athletes-table">
+                  <thead>
+                    <tr>
+                      <th onClick={() => handleSort('name')}      className="th-sortable">Name      <SortIcon col="name" /></th>
+                      <th onClick={() => handleSort('sex')}       className="th-sortable">Gender    <SortIcon col="sex" /></th>
+                      <th onClick={() => handleSort('age')}       className="th-sortable">Age       <SortIcon col="age" /></th>
+                      <th onClick={() => handleSort('height')}    className="th-sortable">Height    <SortIcon col="height" /></th>
+                      <th onClick={() => handleSort('weight')}    className="th-sortable">Weight    <SortIcon col="weight" /></th>
+                      <th onClick={() => handleSort('shirtSize')} className="th-sortable">Shirt     <SortIcon col="shirtSize" /></th>
+                      <th onClick={() => handleSort('shortSize')} className="th-sortable">Shorts    <SortIcon col="shortSize" /></th>
+                      <th onClick={() => handleSort('shoeSize')}  className="th-sortable">Shoe      <SortIcon col="shoeSize" /></th>
+                      <th>Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {filtered.map(a => (
+                      <tr key={a.id} className="table-row">
+                        <td>
+                          <div className="athlete-name-cell">
+                            <div className={`avatar avatar--${a.sex}`}>{initials(a.name)}</div>
+                            <span className="athlete-name-link" onClick={() => navigate(`/athletes/${a.id}`)}>{a.name}</span>
+                          </div>
+                        </td>
+                        <td className="capitalize">{a.sex}</td>
+                        <td>{calcAge(a.dateOfBirth)}</td>
+                        <td>{a.height} cm</td>
+                        <td>{a.weight} kg</td>
+                        <td><span className="size-tag">{a.shirtSize}</span></td>
+                        <td><span className="size-tag">{a.shortSize}</span></td>
+                        <td>{a.shoeSize}</td>
+                        <td>
+                          <div className="row-actions">
+                            <button className="action-btn action-btn--edit" onClick={() => setModal({ type: 'edit', athlete: a })}>Edit</button>
+                            <button className="action-btn action-btn--delete" onClick={() => setModal({ type: 'delete', athlete: a, error: '' })}>Delete</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mobile-only">
+                {filtered.map(a => (
+                  <AthleteListCard
+                    key={a.id}
+                    athlete={a}
+                    age={calcAge(a.dateOfBirth)}
+                    initials={initials(a.name)}
+                    onOpenProfile={() => navigate(`/athletes/${a.id}`)}
+                    onEdit={() => setModal({ type: 'edit', athlete: a })}
+                    onDelete={() => setModal({ type: 'delete', athlete: a, error: '' })}
+                  />
+                ))}
+              </div>
+            </>
           )}
         </>
       )}

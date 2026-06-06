@@ -10,6 +10,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
 import ErrorMessage from '../components/ErrorMessage';
 import NewSessionModal from '../components/NewSessionModal';
+import ResultListCard from '../components/ResultListCard';
 import './ResultsPage.css';
 
 function formatDate(dateStr: string): string {
@@ -409,47 +410,66 @@ export default function ResultsPage() {
                 : undefined}
             />
           ) : (
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Athlete</th>
-                    <th>Event</th>
-                    <th>Result</th>
-                    <th>Date</th>
-                    <th>Notes</th>
-                    <th className="th-actions">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {results.map(r => (
-                    <tr key={r.id} className="table-row">
-                      <td>{r.athleteName}</td>
-                      <td>{r.eventName}</td>
-                      <td>
-                        <span className="result-value">
-                          {r.value} <span className="result-unit">{r.unit}</span>
-                        </span>
-                      </td>
-                      <td>{formatDate(r.resultDate)}</td>
-                      <td>{r.notes || <span className="text-muted">—</span>}</td>
-                      <td className="td-actions">
-                        <button
-                          className="btn btn--icon"
-                          title="Edit result"
-                          onClick={() => setEditingResult(r)}
-                        >✏️</button>
-                        <button
-                          className="btn btn--icon btn--icon-danger"
-                          title="Delete result"
-                          onClick={() => setDeletingResultId(r.id)}
-                        >🗑️</button>
-                      </td>
+            <>
+              <div className="table-wrap desktop-only">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Athlete</th>
+                      <th>Event</th>
+                      <th>Result</th>
+                      <th>Date</th>
+                      <th>Notes</th>
+                      <th className="th-actions">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {results.map(r => (
+                      <tr key={r.id} className="table-row">
+                        <td>{r.athleteName}</td>
+                        <td>{r.eventName}</td>
+                        <td>
+                          <span className="result-value">
+                            {r.value} <span className="result-unit">{r.unit}</span>
+                          </span>
+                        </td>
+                        <td>{formatDate(r.resultDate)}</td>
+                        <td>{r.notes || <span className="text-muted">—</span>}</td>
+                        <td className="td-actions">
+                          <button
+                            className="btn btn--icon"
+                            title="Edit result"
+                            onClick={() => setEditingResult(r)}
+                          >✏️</button>
+                          <button
+                            className="btn btn--icon btn--icon-danger"
+                            title="Delete result"
+                            onClick={() => setDeletingResultId(r.id)}
+                          >🗑️</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mobile-only">
+                {results.map(r => (
+                  <ResultListCard
+                    key={r.id}
+                    athleteName={r.athleteName}
+                    eventName={r.eventName}
+                    value={r.value}
+                    unit={r.unit}
+                    resultDate={r.resultDate}
+                    notes={r.notes}
+                    formatDate={formatDate}
+                    onEdit={() => setEditingResult(r)}
+                    onDelete={() => setDeletingResultId(r.id)}
+                  />
+                ))}
+              </div>
+            </>
           )}
         </>
       )}
